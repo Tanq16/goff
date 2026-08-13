@@ -19,7 +19,7 @@ type ProgressUpdate struct {
 
 type ProgressCallback func(p ProgressUpdate)
 
-func ScanProgress(r io.Reader, totalDurationSec float64, onProgress ProgressCallback) {
+func ScanProgress(r io.Reader, totalDurationSec float64, onProgress ProgressCallback) error {
 	scanner := bufio.NewScanner(r)
 	var current ProgressUpdate
 	current.TotalSeconds = totalDurationSec
@@ -71,4 +71,6 @@ func ScanProgress(r io.Reader, totalDurationSec float64, onProgress ProgressCall
 			}
 		}
 	}
+
+	return scanner.Err()
 }

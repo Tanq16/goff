@@ -20,9 +20,12 @@ fps=60.0
 progress=end
 `
 	var updates []ProgressUpdate
-	ScanProgress(strings.NewReader(raw), 100.0, func(p ProgressUpdate) {
+	err := ScanProgress(strings.NewReader(raw), 100.0, func(p ProgressUpdate) {
 		updates = append(updates, p)
 	})
+	if err != nil {
+		t.Fatalf("unexpected err from ScanProgress: %v", err)
+	}
 
 	if len(updates) != 2 {
 		t.Fatalf("expected 2 updates, got %d", len(updates))

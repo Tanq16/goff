@@ -31,7 +31,7 @@ func RunFFmpeg(ctx context.Context, args []string, totalDurationSec float64, onP
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		ScanProgress(stdoutPipe, totalDurationSec, onProgress)
+		_ = ScanProgress(stdoutPipe, totalDurationSec, onProgress)
 	}()
 
 	go func() {
