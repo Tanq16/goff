@@ -1,1 +1,7 @@
 .agents
+goff
+goff-*
+*.exe
+dist/
+.DS_Store
+*.tmp
