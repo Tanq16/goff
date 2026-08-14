@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"github.com/Tanq16/goff/internal/probe"
 )
 
@@ -90,12 +89,18 @@ func (m MenuModel) Update(msg tea.Msg) (MenuModel, tea.Cmd, *ActionItem) {
 }
 
 func (m MenuModel) View() string {
-	var b strings.Builder
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.ANSIColor(12))
-	subStyle := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(8))
-	cursorStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.ANSIColor(10))
-	descStyle := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(7))
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(8))
+	boxWidth := defaultBoxWidth
+	var lines []string
+
+	title := "Media Suite"
+	if m.probeResult != nil {
+		title = fmt.Sprintf("Media Suite: %s", m.probeResult.BaseFileName())
+	} else {
+		title = fmt.Sprintf("Media Suite (%d files)", m.fileCount)
+	}
+
+	lines = append(lines, renderBoxTop(title, boxWidth))
+	lines = append(lines, renderBoxEmpty(boxWidth))
 
 	if m.probeResult != nil {
 		p := m.probeResult
@@ -103,22 +108,29 @@ func (m MenuModel) View() string {
 		if p.IsVideo() {
 			mediaType = fmt.Sprintf("Video (%s, %s, %s)", p.Resolution(), p.HDRType(), p.HumanDuration())
 		}
-		fmt.Fprintf(&b, "%s\n", titleStyle.Render(fmt.Sprintf("🎬 %s — %s", p.BaseFileName(), mediaType)))
-		fmt.Fprintf(&b, "%s\n\n", subStyle.Render(fmt.Sprintf("Size: %s | Format: %s", p.HumanSize(), p.Format.FormatName)))
+		lines = append(lines, padBoxLine("  "+activeBulletStyle.Render("● ")+activeItemStyle.Render(p.BaseFileName())+"  "+footerStyle.Render(mediaType), boxWidth))
+		lines = append(lines, padBoxLine("    "+branchStyle.Render("└─ ")+footerStyle.Render(fmt.Sprintf("Size: %s  •  Format: %s", p.HumanSize(), p.Format.FormatName)), boxWidth))
 	} else {
-		fmt.Fprintf(&b, "%s\n\n", titleStyle.Render(fmt.Sprintf("🎬 Multi-File Mode (%d files)", m.fileCount)))
+		lines = append(lines, padBoxLine("  "+activeBulletStyle.Render("● ")+activeItemStyle.Render(fmt.Sprintf("Multi-File Mode (%d files selected)", m.fileCount)), boxWidth))
 	}
+
+	lines = append(lines, renderBoxEmpty(boxWidth))
+	lines = append(lines, renderBoxDivider(boxWidth))
+	lines = append(lines, renderBoxEmpty(boxWidth))
 
 	for i, item := range m.items {
 		if i == m.cursor {
-			fmt.Fprintf(&b, "%s\n", cursorStyle.Render(" > "+item.Title))
-			fmt.Fprintf(&b, "%s\n", dimStyle.Render("     "+item.Description))
+			lines = append(lines, padBoxLine("  "+activeBulletStyle.Render("● ")+activeItemStyle.Render(item.Title), boxWidth))
+			lines = append(lines, padBoxLine("    "+branchStyle.Render("└─ ")+descStyle.Render(item.Description), boxWidth))
 		} else {
-			fmt.Fprintf(&b, "%s\n", descStyle.Render("   "+item.Title))
+			lines = append(lines, padBoxLine("  "+normalBulletStyle.Render("○ ")+normalItemStyle.Render(item.Title), boxWidth))
 		}
 	}
 
-	b.WriteString("\n")
-	b.WriteString(subStyle.Render("(↑/↓ or j/k to navigate, Enter to select, Esc to go back, q to quit)"))
-	return b.String()
+	lines = append(lines, renderBoxEmpty(boxWidth))
+	lines = append(lines, renderBoxDivider(boxWidth))
+	lines = append(lines, padBoxLine("  "+footerStyle.Render("↑/↓ or j/k to navigate  •  Enter to select  •  Esc to go back  •  q to quit"), boxWidth))
+	lines = append(lines, renderBoxBottom(boxWidth))
+
+	return strings.Join(lines, "\n")
 }

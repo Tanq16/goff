@@ -1,11 +1,10 @@
 package tui
 
 import (
-	"fmt"
+	"path/filepath"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"github.com/Tanq16/goff/internal/ops"
 	"github.com/Tanq16/goff/internal/presets"
 	"github.com/Tanq16/goff/internal/probe"
@@ -278,25 +277,32 @@ func (m OptionsModel) Update(msg tea.Msg) (OptionsModel, tea.Cmd, *OptionChoice)
 }
 
 func (m OptionsModel) View() string {
-	var b strings.Builder
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.ANSIColor(12))
-	subStyle := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(8))
-	cursorStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.ANSIColor(10))
-	descStyle := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(7))
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(8))
+	boxWidth := defaultBoxWidth
+	var lines []string
 
-	fmt.Fprintf(&b, "%s\n\n", titleStyle.Render("⚙️ "+m.title))
+	lines = append(lines, renderBoxTop("Configure: "+m.title, boxWidth))
+	lines = append(lines, renderBoxEmpty(boxWidth))
+
+	if m.inputPath != "" {
+		lines = append(lines, padBoxLine("  "+labelStyle.Render("Target Media: ")+valueStyle.Render(filepath.Base(m.inputPath)), boxWidth))
+		lines = append(lines, renderBoxEmpty(boxWidth))
+		lines = append(lines, renderBoxDivider(boxWidth))
+		lines = append(lines, renderBoxEmpty(boxWidth))
+	}
 
 	for i, c := range m.choices {
 		if i == m.cursor {
-			fmt.Fprintf(&b, "%s\n", cursorStyle.Render(" > "+c.Title))
-			fmt.Fprintf(&b, "%s\n", dimStyle.Render("     "+c.Description))
+			lines = append(lines, padBoxLine("  "+activeBulletStyle.Render("● ")+activeItemStyle.Render(c.Title), boxWidth))
+			lines = append(lines, padBoxLine("    "+branchStyle.Render("└─ ")+descStyle.Render(c.Description), boxWidth))
 		} else {
-			fmt.Fprintf(&b, "%s\n", descStyle.Render("   "+c.Title))
+			lines = append(lines, padBoxLine("  "+normalBulletStyle.Render("○ ")+normalItemStyle.Render(c.Title), boxWidth))
 		}
 	}
 
-	b.WriteString("\n")
-	b.WriteString(subStyle.Render("(↑/↓ or j/k to navigate, Enter to start, Esc to go back, q to quit)"))
-	return b.String()
+	lines = append(lines, renderBoxEmpty(boxWidth))
+	lines = append(lines, renderBoxDivider(boxWidth))
+	lines = append(lines, padBoxLine("  "+footerStyle.Render("↑/↓ or j/k to navigate  •  Enter to start  •  Esc to go back  •  q to quit"), boxWidth))
+	lines = append(lines, renderBoxBottom(boxWidth))
+
+	return strings.Join(lines, "\n")
 }

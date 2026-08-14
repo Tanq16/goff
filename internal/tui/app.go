@@ -239,18 +239,21 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m AppModel) View() tea.View {
+	var v tea.View
 	switch m.state {
 	case StateFilePicker:
-		return tea.NewView(m.filePicker.View())
+		v = tea.NewView(m.filePicker.View())
 	case StateActionMenu:
-		return tea.NewView(m.menu.View())
+		v = tea.NewView(m.menu.View())
 	case StateOptionsMenu:
-		return tea.NewView(m.options.View())
+		v = tea.NewView(m.options.View())
 	case StateExecuting:
-		return tea.NewView(m.progressView.View())
+		v = tea.NewView(m.progressView.View())
 	case StateSummary:
-		return tea.NewView(m.summary.View())
+		v = tea.NewView(m.summary.View())
 	default:
-		return tea.NewView("")
+		v = tea.NewView("")
 	}
+	v.AltScreen = true
+	return v
 }

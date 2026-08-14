@@ -2,11 +2,11 @@ package tui
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"github.com/Tanq16/goff/internal/engine"
 	"github.com/Tanq16/goff/internal/probe"
 )
@@ -48,24 +48,24 @@ func (m ProgressViewModel) Update(msg tea.Msg) (ProgressViewModel, tea.Cmd) {
 }
 
 func (m ProgressViewModel) View() string {
-	var b strings.Builder
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.ANSIColor(12))
-	infoStyle := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(10))
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(8))
+	boxWidth := defaultBoxWidth
+	var lines []string
 
-	fmt.Fprintf(&b, "%s\n", titleStyle.Render(fmt.Sprintf("⚡ Processing: %s", m.filename)))
-	fmt.Fprintf(&b, "%s\n\n", dimStyle.Render(fmt.Sprintf("Output → %s", m.outputPath)))
+	lines = append(lines, renderBoxTop("Processing Media", boxWidth))
+	lines = append(lines, renderBoxEmpty(boxWidth))
 
 	pct := m.progress.Percent
 	if pct > 100 {
 		pct = 100
 	}
 
-	const barWidth = 30
-	filled := barWidth * pct / 100
-	empty := barWidth - filled
+	const progressWidth = 34
+	filled := progressWidth * pct / 100
+	empty := progressWidth - filled
 
-	bar := strings.Repeat("█", filled) + strings.Repeat("░", empty)
+	barStr := progressFillStyle.Render("●"+strings.Repeat("━", filled)) +
+		progressEmptyStyle.Render(strings.Repeat(" ", empty)) +
+		progressFillStyle.Render("●")
 
 	speed := m.progress.Speed
 	if speed == "" {
@@ -74,20 +74,26 @@ func (m ProgressViewModel) View() string {
 
 	fpsStr := ""
 	if m.progress.FPS > 0 {
-		fpsStr = fmt.Sprintf(" | %.1f fps", m.progress.FPS)
+		fpsStr = fmt.Sprintf("  •  %.1f fps", m.progress.FPS)
 	}
 
 	sizeStr := ""
 	if m.progress.OutBytes > 0 {
-		sizeStr = fmt.Sprintf(" | %s", probe.FormatBytes(m.progress.OutBytes))
+		sizeStr = fmt.Sprintf("  •  %s", probe.FormatBytes(m.progress.OutBytes))
 	}
 
 	curTime := probe.FormatDuration(m.progress.CurrentSeconds)
 	totTime := probe.FormatDuration(m.progress.TotalSeconds)
 
-	fmt.Fprintf(&b, "%s\n\n", infoStyle.Render(fmt.Sprintf(" [%s] %3d%%", bar, pct)))
-	fmt.Fprintf(&b, "  Time: %s / %s | Speed: %s%s%s\n\n", curTime, totTime, speed, fpsStr, sizeStr)
-	b.WriteString(dimStyle.Render("(Encoding in background. Press Ctrl+C to abort)"))
+	lines = append(lines, padBoxLine("  "+activeBulletStyle.Render("● ")+activeItemStyle.Render(m.filename)+footerStyle.Render("  [Encoding]"), boxWidth))
+	lines = append(lines, padBoxLine("    "+barStr+"  "+percentStyle.Render(fmt.Sprintf("%3d%%", pct))+"  "+footerStyle.Render(fmt.Sprintf("(%s / %s)", curTime, totTime)), boxWidth))
+	lines = append(lines, padBoxLine("    "+branchStyle.Render("└─ ")+footerStyle.Render(fmt.Sprintf("Speed: %s%s%s", speed, fpsStr, sizeStr)), boxWidth))
+	lines = append(lines, padBoxLine("    "+branchStyle.Render("└─ ")+footerStyle.Render("Output → "+filepath.Base(m.outputPath)), boxWidth))
 
-	return b.String()
+	lines = append(lines, renderBoxEmpty(boxWidth))
+	lines = append(lines, renderBoxDivider(boxWidth))
+	lines = append(lines, padBoxLine("  "+footerStyle.Render("Encoding in background  •  Press Ctrl+C or q to abort"), boxWidth))
+	lines = append(lines, renderBoxBottom(boxWidth))
+
+	return strings.Join(lines, "\n")
 }

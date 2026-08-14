@@ -7,7 +7,6 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"github.com/Tanq16/goff/internal/probe"
 )
 
@@ -53,45 +52,56 @@ func (m SummaryModel) Update(msg tea.Msg) (SummaryModel, tea.Cmd) {
 }
 
 func (m SummaryModel) View() string {
-	var b strings.Builder
+	boxWidth := defaultBoxWidth
+	var lines []string
 
 	if m.err != nil {
-		errStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.ANSIColor(9))
-		b.WriteString(errStyle.Render("✗ Processing Failed"))
-		b.WriteString("\n\n")
-		fmt.Fprintf(&b, "Error: %v\n\n", m.err)
-		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(8)).Render("(Press Enter or q to exit)"))
-		return b.String()
+		lines = append(lines, renderBoxTop("Operation Failed", boxWidth))
+		lines = append(lines, renderBoxEmpty(boxWidth))
+		lines = append(lines, padBoxLine("  "+errorStyle.Render("✗ Processing Failed"), boxWidth))
+		lines = append(lines, padBoxLine("    "+branchStyle.Render("└─ ")+normalItemStyle.Render(fmt.Sprintf("Error: %v", m.err)), boxWidth))
+		lines = append(lines, renderBoxEmpty(boxWidth))
+		lines = append(lines, renderBoxDivider(boxWidth))
+		lines = append(lines, padBoxLine("  "+footerStyle.Render("Press Enter, Esc, or q to exit"), boxWidth))
+		lines = append(lines, renderBoxBottom(boxWidth))
+		return strings.Join(lines, "\n")
 	}
 
-	successStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.ANSIColor(10))
-	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(12))
-	valueStyle := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(15))
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(8))
+	lines = append(lines, renderBoxTop("Operation Complete", boxWidth))
+	lines = append(lines, renderBoxEmpty(boxWidth))
+	lines = append(lines, padBoxLine("  "+successStyle.Render("✓ Operation Completed Successfully!"), boxWidth))
+	lines = append(lines, renderBoxEmpty(boxWidth))
 
-	b.WriteString(successStyle.Render("✓ Operation Completed Successfully!"))
-	b.WriteString("\n\n")
-
-	fmt.Fprintf(&b, "  %s %s\n", labelStyle.Render("Output File:"), valueStyle.Render(m.outputPath))
-	fmt.Fprintf(&b, "  %s %s\n", labelStyle.Render("Time Taken: "), valueStyle.Render(m.duration.Round(time.Millisecond*100).String()))
+	lines = append(lines, padBoxLine("  "+labelStyle.Render("Output File: ")+valueStyle.Render(m.outputPath), boxWidth))
+	lines = append(lines, padBoxLine("  "+labelStyle.Render("Time Taken:  ")+valueStyle.Render(m.duration.Round(time.Millisecond*100).String()), boxWidth))
 
 	if m.origSize > 0 && m.outSize > 0 {
 		origStr := probe.FormatBytes(m.origSize)
 		outStr := probe.FormatBytes(m.outSize)
-		fmt.Fprintf(&b, "  %s %s → %s\n", labelStyle.Render("File Size:  "), origStr, valueStyle.Render(outStr))
+		lines = append(lines, padBoxLine("  "+labelStyle.Render("File Size:   ")+valueStyle.Render(fmt.Sprintf("%s → %s", origStr, outStr)), boxWidth))
 
 		if m.outSize < m.origSize {
 			savedBytes := m.origSize - m.outSize
 			ratio := float64(savedBytes) / float64(m.origSize) * 100.0
-			savingsStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.ANSIColor(10))
-			fmt.Fprintf(&b, "  %s %s (saved %s)\n", labelStyle.Render("Savings:    "), savingsStyle.Render(fmt.Sprintf("%.1f%%", ratio)), probe.FormatBytes(savedBytes))
+			const savingsBarWidth = 20
+			filled := int(ratio * float64(savingsBarWidth) / 100.0)
+			if filled > savingsBarWidth {
+				filled = savingsBarWidth
+			}
+			barStr := progressFillStyle.Render("●"+strings.Repeat("━", filled)) +
+				progressEmptyStyle.Render(strings.Repeat(" ", savingsBarWidth-filled)) +
+				progressFillStyle.Render("●")
+			lines = append(lines, padBoxLine("  "+labelStyle.Render("Savings:     ")+barStr+"  "+percentStyle.Render(fmt.Sprintf("%.1f%%", ratio))+footerStyle.Render(fmt.Sprintf(" (saved %s)", probe.FormatBytes(savedBytes))), boxWidth))
 		} else if m.outSize > m.origSize {
 			diff := m.outSize - m.origSize
-			fmt.Fprintf(&b, "  %s +%s\n", labelStyle.Render("Size Delta: "), probe.FormatBytes(diff))
+			lines = append(lines, padBoxLine("  "+labelStyle.Render("Size Delta:  ")+valueStyle.Render(fmt.Sprintf("+%s", probe.FormatBytes(diff))), boxWidth))
 		}
 	}
 
-	b.WriteString("\n")
-	b.WriteString(dimStyle.Render("(Press Enter, q, or Esc to exit)"))
-	return b.String()
+	lines = append(lines, renderBoxEmpty(boxWidth))
+	lines = append(lines, renderBoxDivider(boxWidth))
+	lines = append(lines, padBoxLine("  "+footerStyle.Render("Press Enter, Esc, or q to exit"), boxWidth))
+	lines = append(lines, renderBoxBottom(boxWidth))
+
+	return strings.Join(lines, "\n")
 }

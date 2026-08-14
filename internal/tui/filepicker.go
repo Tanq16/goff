@@ -1,14 +1,12 @@
 package tui
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 )
 
 var mediaExtensions = []string{
@@ -89,33 +87,33 @@ func (m FilePickerModel) Update(msg tea.Msg) (FilePickerModel, tea.Cmd, []string
 }
 
 func (m FilePickerModel) View() string {
-	var b strings.Builder
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.ANSIColor(12))
-	subStyle := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(8))
-	cursorStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.ANSIColor(10))
-	normalStyle := lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(7))
+	boxWidth := defaultBoxWidth
+	var lines []string
 
-	b.WriteString(titleStyle.Render("📂 Select Media File"))
-	b.WriteByte('\n')
-	fmt.Fprintf(&b, "%s\n\n", subStyle.Render(fmt.Sprintf("Directory: %s", m.cwd)))
+	lines = append(lines, renderBoxTop("Select Media File", boxWidth))
+	lines = append(lines, renderBoxEmpty(boxWidth))
+	lines = append(lines, padBoxLine("  "+labelStyle.Render("Directory: ")+valueStyle.Render(m.cwd), boxWidth))
+	lines = append(lines, renderBoxEmpty(boxWidth))
+	lines = append(lines, renderBoxDivider(boxWidth))
+	lines = append(lines, renderBoxEmpty(boxWidth))
 
 	if len(m.files) == 0 {
-		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(11)).Render("No media files found in current directory."))
-		b.WriteString("\n")
-		b.WriteString(subStyle.Render("(Press q or Esc to exit)"))
-		return b.String()
-	}
-
-	for i, f := range m.files {
-		name := filepath.Base(f)
-		if i == m.cursor {
-			fmt.Fprintf(&b, "%s\n", cursorStyle.Render(" > "+name))
-		} else {
-			fmt.Fprintf(&b, "%s\n", normalStyle.Render("   "+name))
+		lines = append(lines, padBoxLine("  "+normalBulletStyle.Render("○ ")+normalItemStyle.Render("No media files found in current directory"), boxWidth))
+	} else {
+		for i, f := range m.files {
+			name := filepath.Base(f)
+			if i == m.cursor {
+				lines = append(lines, padBoxLine("  "+activeBulletStyle.Render("● ")+activeItemStyle.Render(name), boxWidth))
+			} else {
+				lines = append(lines, padBoxLine("  "+normalBulletStyle.Render("○ ")+normalItemStyle.Render(name), boxWidth))
+			}
 		}
 	}
 
-	b.WriteString("\n")
-	b.WriteString(subStyle.Render("(↑/↓ or j/k to navigate, Enter to select, q/Esc to exit)"))
-	return b.String()
+	lines = append(lines, renderBoxEmpty(boxWidth))
+	lines = append(lines, renderBoxDivider(boxWidth))
+	lines = append(lines, padBoxLine("  "+footerStyle.Render("↑/↓ or j/k to navigate  •  Enter to select  •  q to exit"), boxWidth))
+	lines = append(lines, renderBoxBottom(boxWidth))
+
+	return strings.Join(lines, "\n")
 }
