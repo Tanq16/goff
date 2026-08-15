@@ -1,4 +1,5 @@
 <div align="center">
+  <img src=".github/assets/logo.svg" alt="goff Logo" width="200">
   <h1>goff</h1>
 
   <a href="https://github.com/Tanq16/goff/actions/workflows/release.yaml"><img alt="Build Workflow" src="https://github.com/Tanq16/goff/actions/workflows/release.yaml/badge.svg"></a>&nbsp;<a href="https://github.com/Tanq16/goff/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/Tanq16/goff"></a><br><br>
