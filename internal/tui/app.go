@@ -157,7 +157,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if item.ID == "inspect" {
 				return m, tea.Quit
 			}
-			m.options = NewOptionsModel(item.ID, m.activeFile, m.probeResult)
+			m.options = NewOptionsModel(item.ID, m.activeFile, m.probeResult, m.files)
 			m.state = StateOptionsMenu
 		}
 		return m, cmd

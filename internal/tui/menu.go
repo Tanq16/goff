@@ -29,17 +29,19 @@ func NewMenuModel(p *probe.ProbeResult, fileCount int) MenuModel {
 			{ID: "multi_concat", Title: "Concatenate / Merge Clips", Description: "Stitch multiple video or audio clips together"},
 			{ID: "multi_mux_audio", Title: "Mux External Audio into Video", Description: "Replace or add audio track to video"},
 			{ID: "multi_mux_subs", Title: "Embed Subtitles into Video", Description: "Embed soft or burn hard subtitles"},
+			{ID: "multi_watermark", Title: "Watermark / Logo Overlay", Description: "Overlay image/logo onto video with position & scale"},
 			{ID: "multi_batch", Title: "Batch Process with Preset", Description: "Apply chosen preset across all selected files"},
 		}
 	} else if p != nil && p.IsVideo() {
 		items = []ActionItem{
 			{ID: "video_opt", Title: "Optimize & Compress", Description: "High-efficiency H.265/AV1 compression with SDR tone-mapping"},
 			{ID: "video_remux", Title: "Fast Remux", Description: "Lossless container switch (MP4/MKV/MOV) with +faststart"},
+			{ID: "video_hls", Title: "HLS VoD Streaming Package", Description: "Generate fMP4 / MPEG-TS HTTP Live Streaming playlist & segments"},
 			{ID: "video_extract", Title: "Extract Audio", Description: "Extract audio stream to MP3, AAC, FLAC, or Opus"},
 			{ID: "video_trim", Title: "Trim / Cut Segment", Description: "Extract specific time range by timestamps"},
 			{ID: "video_gif", Title: "Animated GIF / WebP", Description: "High-quality 2-pass palettegen animated loop"},
-			{ID: "video_transform", Title: "Transform (Scale / 9:16 / Speed)", Description: "Scale resolution, crop vertical for Shorts, change speed"},
-			{ID: "presets_menu", Title: "Built-in Presets", Description: "1-click web-optimize, discord-25mb, vertical-9-16, etc."},
+			{ID: "video_transform", Title: "Transform (Scale / Rotate / 9:16 / Speed)", Description: "Scale resolution, rotate/flip, crop vertical for Shorts, change speed"},
+			{ID: "presets_menu", Title: "Built-in Presets", Description: "1-click web-optimize, discord-25mb, hls-fmp4, rotate-90, etc."},
 			{ID: "inspect", Title: "Inspect Streams & Metadata", Description: "View codecs, resolutions, bitrates, HDR parameters"},
 		}
 	} else {

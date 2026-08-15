@@ -10,6 +10,7 @@ import (
 type VideoTransformOpts struct {
 	Scale         string
 	CropVertical  bool
+	Rotate        string
 	Speed         float64
 	StripAudio    bool
 	VolumeBoost   float64
@@ -21,6 +22,29 @@ func BuildVideoTransform(inputPath string, p *probe.ProbeResult, opts VideoTrans
 	var vfFilters []string
 	var afFilters []string
 	suffix := "transformed"
+
+	if opts.Rotate != "" {
+		switch strings.ToLower(opts.Rotate) {
+		case "90_cw", "90", "cw", "transpose=1":
+			vfFilters = append(vfFilters, "transpose=1")
+			suffix = "rot90"
+		case "90_ccw", "270", "ccw", "transpose=2":
+			vfFilters = append(vfFilters, "transpose=2")
+			suffix = "rot270"
+		case "180":
+			vfFilters = append(vfFilters, "transpose=1,transpose=1")
+			suffix = "rot180"
+		case "hflip", "flip_h", "mirror":
+			vfFilters = append(vfFilters, "hflip")
+			suffix = "hflip"
+		case "vflip", "flip_v":
+			vfFilters = append(vfFilters, "vflip")
+			suffix = "vflip"
+		default:
+			vfFilters = append(vfFilters, opts.Rotate)
+			suffix = "rotated"
+		}
+	}
 
 	if opts.CropVertical {
 		vfFilters = append(vfFilters, "crop=ih*(9/16):ih,scale=trunc(iw/2)*2:trunc(ih/2)*2")
@@ -103,6 +127,10 @@ func BuildVideoTransform(inputPath string, p *probe.ProbeResult, opts VideoTrans
 	}
 
 	args = append(args, "-movflags", "+faststart")
+
+	if opts.Rotate != "" {
+		args = append(args, "-metadata:s:v:0", "rotate=0")
+	}
 
 	if opts.CustomSuffix != "" {
 		suffix = opts.CustomSuffix

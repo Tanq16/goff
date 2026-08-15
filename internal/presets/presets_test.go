@@ -40,6 +40,11 @@ func TestBuiltinPresets(t *testing.T) {
 		"vertical-9-16",
 		"podcast-master",
 		"normalize-audio",
+		"hls-fmp4",
+		"hls-ts",
+		"rotate-90",
+		"rotate-180",
+		"rotate-270",
 	}
 
 	for _, id := range expectedIDs {

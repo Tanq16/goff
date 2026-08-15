@@ -137,4 +137,68 @@ func init() {
 			})
 		},
 	})
+
+	Register(Preset{
+		ID:          "hls-fmp4",
+		Name:        "HLS VoD (fMP4 Streamable)",
+		Description: "VoD HLS streaming playlist with fMP4 segments & init.mp4",
+		Category:    ops.CategoryVideo,
+		Build: func(input string, p *probe.ProbeResult) (*ops.OpResult, error) {
+			return ops.BuildVideoHLS(input, p, ops.VideoHLSOpts{
+				Format: ops.HLSFormatFMP4,
+			})
+		},
+	})
+
+	Register(Preset{
+		ID:          "hls-ts",
+		Name:        "HLS VoD (MPEG-TS)",
+		Description: "Classic VoD HLS playlist with MPEG-TS segments for legacy players",
+		Category:    ops.CategoryVideo,
+		Build: func(input string, p *probe.ProbeResult) (*ops.OpResult, error) {
+			return ops.BuildVideoHLS(input, p, ops.VideoHLSOpts{
+				Format: ops.HLSFormatMPEGTS,
+			})
+		},
+	})
+
+	Register(Preset{
+		ID:          "rotate-90",
+		Name:        "Rotate 90° Clockwise",
+		Description: "Rotates video 90 degrees clockwise",
+		Category:    ops.CategoryVideo,
+		Build: func(input string, p *probe.ProbeResult) (*ops.OpResult, error) {
+			return ops.BuildVideoTransform(input, p, ops.VideoTransformOpts{
+				Rotate:       "90_cw",
+				CustomSuffix: "rot90",
+			})
+		},
+	})
+
+	Register(Preset{
+		ID:          "rotate-180",
+		Name:        "Rotate 180°",
+		Description: "Rotates video 180 degrees (upside down)",
+		Category:    ops.CategoryVideo,
+		Build: func(input string, p *probe.ProbeResult) (*ops.OpResult, error) {
+			return ops.BuildVideoTransform(input, p, ops.VideoTransformOpts{
+				Rotate:       "180",
+				CustomSuffix: "rot180",
+			})
+		},
+	})
+
+	Register(Preset{
+		ID:          "rotate-270",
+		Name:        "Rotate 90° Counter-Clockwise",
+		Description: "Rotates video 90 degrees counter-clockwise (270° CW)",
+		Category:    ops.CategoryVideo,
+		Build: func(input string, p *probe.ProbeResult) (*ops.OpResult, error) {
+			return ops.BuildVideoTransform(input, p, ops.VideoTransformOpts{
+				Rotate:       "90_ccw",
+				CustomSuffix: "rot270",
+			})
+		},
+	})
 }
+

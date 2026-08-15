@@ -48,10 +48,22 @@ func TestTUIViewsRendering(t *testing.T) {
 		t.Errorf("MenuModel.View() missing title: %s", menuView)
 	}
 
-	options := NewOptionsModel("video_opt", "sample.mp4", p)
+	options := NewOptionsModel("video_opt", "sample.mp4", p, []string{"sample.mp4"})
 	optionsView := options.View()
 	if !strings.Contains(optionsView, "Configure: Video Optimization") {
 		t.Errorf("OptionsModel.View() missing title: %s", optionsView)
+	}
+
+	hlsOptions := NewOptionsModel("video_hls", "sample.mp4", p, []string{"sample.mp4"})
+	hlsView := hlsOptions.View()
+	if !strings.Contains(hlsView, "HLS VoD Streaming Package") {
+		t.Errorf("OptionsModel.View() missing HLS title: %s", hlsView)
+	}
+
+	wmOptions := NewOptionsModel("multi_watermark", "sample.mp4", p, []string{"sample.mp4", "logo.png"})
+	wmView := wmOptions.View()
+	if !strings.Contains(wmView, "Watermark / Logo Overlay") {
+		t.Errorf("OptionsModel.View() missing Watermark title: %s", wmView)
 	}
 
 	prog := NewProgressViewModel("sample.mp4", "sample.optimized.mp4", 60.0)

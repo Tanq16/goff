@@ -14,10 +14,10 @@
 | Category | Features | Description |
 |----------|----------|-------------|
 | **Video Compression** | `web-optimize`, `discord-25mb`, `discord-10mb` | High-efficiency H.265 / AV1 / H.264 compression, max 1080p SDR downscale, auto Hable HDR tone-mapping |
-| **Stream Operations** | `remux`, `extract`, `trim`, `gif` | Instant lossless container switching, audio extraction (MP3/AAC/FLAC/Opus), segment trimming, 2-pass palettegen GIF/WebP |
-| **Transformations** | `scale`, `vertical-9-16`, `speed`, `mute` | Multi-resolution scaling, 9:16 vertical crop for Shorts/Reels/TikTok, pitch-corrected speedup/slowdown, volume normalization |
+| **Stream Operations** | `remux`, `hls-fmp4`, `hls-ts`, `extract`, `trim`, `gif` | Instant lossless container switching, VoD HLS fMP4 / MPEG-TS packaging, audio extraction, 2-pass palettegen GIF/WebP |
+| **Transformations** | `scale`, `rotate-90`, `rotate-180`, `rotate-270`, `vertical-9-16`, `speed`, `mute` | Multi-resolution scaling, 90°/180°/270° rotation & horizontal/vertical flips, 9:16 vertical crop, pitch-corrected speed |
 | **Audio Suite** | `podcast-master`, `convert`, `normalize` | Broadcast standard EBU R128 loudness normalization (-16 LUFS), bitrate transcoding, downmixing |
-| **Multi-File & Batch** | `concat`, `mux`, `batch` | Multi-clip concatenation, external audio/subtitle muxing, parallel batch processing with worker pool |
+| **Multi-File & Batch** | `watermark`, `concat`, `mux`, `batch` | Watermark / logo overlays with corner/center alignment, multi-clip concatenation, external audio/subtitle muxing, parallel batch pool |
 | **Metadata Inspection** | `inspect` | Detailed stream inspector displaying codecs, profiles, resolutions, FPS, HDR transfer characteristics |
 
 ## Installation
@@ -127,6 +127,11 @@ goff inspect video.mp4 --for-ai
 | `vertical-9-16` | Video | Center-crop 16:9 widescreen video to 9:16 vertical |
 | `podcast-master` | Audio | Broadcast standard EBU R128 loudness normalization (-16 LUFS) with 192k AAC/MP3 |
 | `normalize-audio`| Audio | General EBU R128 broadcast normalization |
+| `hls-fmp4`       | Video | VoD HLS streaming playlist with fMP4 segments & init.mp4 |
+| `hls-ts`         | Video | Classic VoD HLS playlist with MPEG-TS segments |
+| `rotate-90`      | Video | Rotates video 90 degrees clockwise |
+| `rotate-180`     | Video | Rotates video 180 degrees (upside down) |
+| `rotate-270`     | Video | Rotates video 90 degrees counter-clockwise |
 
 ## Tips and Notes
 

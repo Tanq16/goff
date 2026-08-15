@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -24,9 +25,10 @@ type OptionsModel struct {
 	cursor      int
 	probeResult *probe.ProbeResult
 	inputPath   string
+	files       []string
 }
 
-func NewOptionsModel(actionID string, inputPath string, p *probe.ProbeResult) OptionsModel {
+func NewOptionsModel(actionID string, inputPath string, p *probe.ProbeResult, files []string) OptionsModel {
 	var choices []OptionChoice
 	title := "Configure Options"
 
@@ -79,6 +81,23 @@ func NewOptionsModel(actionID string, inputPath string, p *probe.ProbeResult) Op
 				ID: "remux_mov", Title: "Remux to QuickTime MOV", Description: "Lossless stream copy to Apple MOV container",
 				Build: func(in string, pr *probe.ProbeResult) (*ops.OpResult, error) {
 					return ops.BuildVideoRemux(in, pr, ops.VideoRemuxOpts{TargetExt: "mov"})
+				},
+			},
+		}
+
+	case "video_hls":
+		title = "HLS VoD Streaming Package"
+		choices = []OptionChoice{
+			{
+				ID: "hls_fmp4", Title: "HLS VoD — Fragmented MP4 (fMP4)", Description: "CMAF/fMP4 streamable playlist with init.mp4 & 6s segments",
+				Build: func(in string, pr *probe.ProbeResult) (*ops.OpResult, error) {
+					return ops.BuildVideoHLS(in, pr, ops.VideoHLSOpts{Format: ops.HLSFormatFMP4, SegmentDuration: 6})
+				},
+			},
+			{
+				ID: "hls_ts", Title: "HLS VoD — MPEG-TS", Description: "Universal MPEG-TS streamable playlist with 6s segments",
+				Build: func(in string, pr *probe.ProbeResult) (*ops.OpResult, error) {
+					return ops.BuildVideoHLS(in, pr, ops.VideoHLSOpts{Format: ops.HLSFormatMPEGTS, SegmentDuration: 6})
 				},
 			},
 		}
@@ -157,6 +176,30 @@ func NewOptionsModel(actionID string, inputPath string, p *probe.ProbeResult) Op
 				},
 			},
 			{
+				ID: "rotate_90", Title: "Rotate 90° Clockwise", Description: "Rotate video 90 degrees clockwise (transpose=1)",
+				Build: func(in string, pr *probe.ProbeResult) (*ops.OpResult, error) {
+					return ops.BuildVideoTransform(in, pr, ops.VideoTransformOpts{Rotate: "90_cw", CustomSuffix: "rot90"})
+				},
+			},
+			{
+				ID: "rotate_180", Title: "Rotate 180°", Description: "Rotate video 180 degrees (upside down)",
+				Build: func(in string, pr *probe.ProbeResult) (*ops.OpResult, error) {
+					return ops.BuildVideoTransform(in, pr, ops.VideoTransformOpts{Rotate: "180", CustomSuffix: "rot180"})
+				},
+			},
+			{
+				ID: "rotate_270", Title: "Rotate 90° Counter-Clockwise", Description: "Rotate video 90 degrees counter-clockwise (transpose=2)",
+				Build: func(in string, pr *probe.ProbeResult) (*ops.OpResult, error) {
+					return ops.BuildVideoTransform(in, pr, ops.VideoTransformOpts{Rotate: "90_ccw", CustomSuffix: "rot270"})
+				},
+			},
+			{
+				ID: "flip_horizontal", Title: "Flip Horizontal (Mirror)", Description: "Mirror video horizontally (hflip)",
+				Build: func(in string, pr *probe.ProbeResult) (*ops.OpResult, error) {
+					return ops.BuildVideoTransform(in, pr, ops.VideoTransformOpts{Rotate: "hflip", CustomSuffix: "hflip"})
+				},
+			},
+			{
 				ID: "speed_15x", Title: "Speed up 1.5x (Pitch Corrected)", Description: "1.5x playback speed with audio atempo pitch correction",
 				Build: func(in string, pr *probe.ProbeResult) (*ops.OpResult, error) {
 					return ops.BuildVideoTransform(in, pr, ops.VideoTransformOpts{Speed: 1.5})
@@ -222,9 +265,166 @@ func NewOptionsModel(actionID string, inputPath string, p *probe.ProbeResult) Op
 			},
 		}
 
-	case "presets_menu":
+	case "multi_concat":
+		title = "Concatenate / Merge Clips"
+		choices = []OptionChoice{
+			{
+				ID: "concat_reencode", Title: "Re-encode & Merge (Universal)", Description: "Re-encodes all clips into a unified H.264/AAC file",
+				Build: func(in string, pr *probe.ProbeResult) (*ops.OpResult, error) {
+					res, _, err := ops.BuildMultiConcat(files, ops.MultiConcatOpts{Reencode: true})
+					return res, err
+				},
+			},
+			{
+				ID: "concat_copy", Title: "Fast Stream Copy Merge", Description: "Lossless container join (requires identical codecs/resolutions)",
+				Build: func(in string, pr *probe.ProbeResult) (*ops.OpResult, error) {
+					res, _, err := ops.BuildMultiConcat(files, ops.MultiConcatOpts{Reencode: false})
+					return res, err
+				},
+			},
+		}
+
+	case "multi_mux_audio":
+		title = "Mux External Audio into Video"
+		vIn := inputPath
+		aIn := ""
+		if len(files) >= 2 {
+			vIn = files[0]
+			aIn = files[1]
+		}
+		choices = []OptionChoice{
+			{
+				ID: "mux_replace", Title: "Replace Audio Track", Description: "Replaces primary audio stream with external audio file",
+				Build: func(in string, pr *probe.ProbeResult) (*ops.OpResult, error) {
+					return ops.BuildMultiMuxAudio(ops.MultiMuxAudioOpts{
+						VideoInput:      vIn,
+						AudioInput:      aIn,
+						ReplaceOriginal: true,
+					})
+				},
+			},
+			{
+				ID: "mux_add", Title: "Add Secondary Audio Track", Description: "Preserves existing audio and adds external audio track",
+				Build: func(in string, pr *probe.ProbeResult) (*ops.OpResult, error) {
+					return ops.BuildMultiMuxAudio(ops.MultiMuxAudioOpts{
+						VideoInput:      vIn,
+						AudioInput:      aIn,
+						ReplaceOriginal: false,
+					})
+				},
+			},
+		}
+
+	case "multi_mux_subs":
+		title = "Embed Subtitles into Video"
+		vIn := inputPath
+		sIn := ""
+		if len(files) >= 2 {
+			vIn = files[0]
+			sIn = files[1]
+		}
+		choices = []OptionChoice{
+			{
+				ID: "subs_soft", Title: "Embed Soft Subtitles (Container Mux)", Description: "Lossless muxing of subtitle stream into container",
+				Build: func(in string, pr *probe.ProbeResult) (*ops.OpResult, error) {
+					return ops.BuildMultiMuxSubs(ops.MultiMuxSubsOpts{
+						VideoInput: vIn,
+						SubsInput:  sIn,
+						Hardburn:   false,
+					})
+				},
+			},
+			{
+				ID: "subs_hard", Title: "Burn Hard Subtitles (Re-encode)", Description: "Render subtitles directly into video pixels",
+				Build: func(in string, pr *probe.ProbeResult) (*ops.OpResult, error) {
+					return ops.BuildMultiMuxSubs(ops.MultiMuxSubsOpts{
+						VideoInput: vIn,
+						SubsInput:  sIn,
+						Hardburn:   true,
+					})
+				},
+			},
+		}
+
+	case "multi_watermark":
+		title = "Watermark / Logo Overlay"
+		vIn := inputPath
+		wIn := ""
+		if len(files) >= 2 {
+			vIn = files[0]
+			wIn = files[1]
+		}
+		choices = []OptionChoice{
+			{
+				ID: "wm_top_right", Title: "Top-Right Corner (15% Width)", Description: "Standard watermark position with 2% margin",
+				Build: func(in string, pr *probe.ProbeResult) (*ops.OpResult, error) {
+					return ops.BuildMultiWatermark(ops.MultiWatermarkOpts{
+						VideoInput:     vIn,
+						WatermarkInput: wIn,
+						Position:       ops.PosTopRight,
+						ScalePercent:   15,
+						MarginPercent:  2,
+					})
+				},
+			},
+			{
+				ID: "wm_top_left", Title: "Top-Left Corner (15% Width)", Description: "Top-left watermark position with 2% margin",
+				Build: func(in string, pr *probe.ProbeResult) (*ops.OpResult, error) {
+					return ops.BuildMultiWatermark(ops.MultiWatermarkOpts{
+						VideoInput:     vIn,
+						WatermarkInput: wIn,
+						Position:       ops.PosTopLeft,
+						ScalePercent:   15,
+						MarginPercent:  2,
+					})
+				},
+			},
+			{
+				ID: "wm_bottom_right", Title: "Bottom-Right Corner (15% Width)", Description: "Bottom-right watermark position with 2% margin",
+				Build: func(in string, pr *probe.ProbeResult) (*ops.OpResult, error) {
+					return ops.BuildMultiWatermark(ops.MultiWatermarkOpts{
+						VideoInput:     vIn,
+						WatermarkInput: wIn,
+						Position:       ops.PosBottomRight,
+						ScalePercent:   15,
+						MarginPercent:  2,
+					})
+				},
+			},
+			{
+				ID: "wm_bottom_left", Title: "Bottom-Left Corner (15% Width)", Description: "Bottom-left watermark position with 2% margin",
+				Build: func(in string, pr *probe.ProbeResult) (*ops.OpResult, error) {
+					return ops.BuildMultiWatermark(ops.MultiWatermarkOpts{
+						VideoInput:     vIn,
+						WatermarkInput: wIn,
+						Position:       ops.PosBottomLeft,
+						ScalePercent:   15,
+						MarginPercent:  2,
+					})
+				},
+			},
+			{
+				ID: "wm_center_subtle", Title: "Center Subtle Watermark (25% Width, 40% Opacity)", Description: "Centered semi-transparent watermark",
+				Build: func(in string, pr *probe.ProbeResult) (*ops.OpResult, error) {
+					return ops.BuildMultiWatermark(ops.MultiWatermarkOpts{
+						VideoInput:     vIn,
+						WatermarkInput: wIn,
+						Position:       ops.PosCenter,
+						ScalePercent:   25,
+						Opacity:        0.4,
+					})
+				},
+			},
+		}
+
+	case "presets_menu", "multi_batch":
 		title = "Select Preset"
-		available := presets.MatchPresetForMedia(p)
+		var available []presets.Preset
+		if actionID == "multi_batch" || p == nil {
+			available = presets.List()
+		} else {
+			available = presets.MatchPresetForMedia(p)
+		}
 		for _, pr := range available {
 			presetCopy := pr
 			choices = append(choices, OptionChoice{
@@ -245,6 +445,7 @@ func NewOptionsModel(actionID string, inputPath string, p *probe.ProbeResult) Op
 		cursor:      0,
 		probeResult: p,
 		inputPath:   inputPath,
+		files:       files,
 	}
 }
 
@@ -283,8 +484,13 @@ func (m OptionsModel) View() string {
 	lines = append(lines, renderBoxTop("Configure: "+m.title, boxWidth))
 	lines = append(lines, renderBoxEmpty(boxWidth))
 
-	if m.inputPath != "" {
+	if m.inputPath != "" && len(m.files) <= 1 {
 		lines = append(lines, padBoxLine("  "+labelStyle.Render("Target Media: ")+valueStyle.Render(filepath.Base(m.inputPath)), boxWidth))
+		lines = append(lines, renderBoxEmpty(boxWidth))
+		lines = append(lines, renderBoxDivider(boxWidth))
+		lines = append(lines, renderBoxEmpty(boxWidth))
+	} else if len(m.files) > 1 {
+		lines = append(lines, padBoxLine("  "+labelStyle.Render("Selected Inputs: ")+valueStyle.Render(fmt.Sprintf("%d files (%s, %s...)", len(m.files), filepath.Base(m.files[0]), filepath.Base(m.files[1]))), boxWidth))
 		lines = append(lines, renderBoxEmpty(boxWidth))
 		lines = append(lines, renderBoxDivider(boxWidth))
 		lines = append(lines, renderBoxEmpty(boxWidth))
