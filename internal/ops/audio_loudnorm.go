@@ -35,9 +35,13 @@ func BuildAudioLoudnorm(inputPath string, p *probe.ProbeResult, opts AudioLoudno
 
 	ext := strings.TrimPrefix(opts.OutputExt, ".")
 	if ext == "" {
-		ext = strings.TrimPrefix(filepath.Ext(inputPath), ".")
-		if ext == "" {
-			ext = "mp3"
+		if p != nil && p.IsVideo() {
+			ext = "mp4"
+		} else {
+			ext = strings.TrimPrefix(filepath.Ext(inputPath), ".")
+			if ext == "" {
+				ext = "mp3"
+			}
 		}
 	}
 
@@ -46,18 +50,32 @@ func BuildAudioLoudnorm(inputPath string, p *probe.ProbeResult, opts AudioLoudno
 		"-af", filter,
 	}
 
-	if p != nil && p.IsVideo() {
+	isAudioExt := ext == "mp3" || ext == "m4a" || ext == "aac" || ext == "flac" || ext == "wav" || ext == "ogg" || ext == "opus"
+
+	if p != nil && p.IsVideo() && !isAudioExt {
 		args = append(args, "-c:v", "copy", "-c:a", "aac", "-b:a", "192k")
-		if ext == "" {
-			ext = "mp4"
+		if ext == "mp4" || ext == "mov" {
+			args = append(args, "-movflags", "+faststart")
 		}
 	} else {
-		if ext == "mp3" {
+		if p != nil && p.IsVideo() {
+			args = append(args, "-vn")
+		}
+		switch ext {
+		case "mp3":
 			args = append(args, "-c:a", "libmp3lame", "-b:a", "320k")
-		} else if ext == "m4a" || ext == "aac" {
+		case "m4a", "aac":
 			args = append(args, "-c:a", "aac", "-b:a", "256k")
-		} else if ext == "flac" {
+		case "flac":
 			args = append(args, "-c:a", "flac")
+		case "opus":
+			args = append(args, "-c:a", "libopus", "-b:a", "160k")
+		case "wav":
+			args = append(args, "-c:a", "pcm_s16le")
+		case "ogg":
+			args = append(args, "-c:a", "libvorbis", "-b:a", "192k")
+		default:
+			args = append(args, "-c:a", "libmp3lame", "-b:a", "320k")
 		}
 	}
 

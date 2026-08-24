@@ -81,22 +81,127 @@ func TestBuildVideoExtract(t *testing.T) {
 }
 
 func TestBuildAudioLoudnorm(t *testing.T) {
-	res, err := BuildAudioLoudnorm("song.wav", nil, AudioLoudnormOpts{
-		IntegratedLoudness: -14.0,
-		OutputExt:          "mp3",
+	fakeVideoProbe := &probe.ProbeResult{
+		Streams: []probe.StreamInfo{
+			{CodecType: "video", Width: 1920, Height: 1080},
+			{CodecType: "audio", SampleRate: "48000", Channels: 2},
+		},
+	}
+
+	tests := []struct {
+		name      string
+		input     string
+		probe     *probe.ProbeResult
+		opts      AudioLoudnormOpts
+		wantExt   string
+		hasVN     bool
+		hasCopy   bool
+	}{
+		{
+			name:    "pure audio to mp3",
+			input:   "song.wav",
+			probe:   nil,
+			opts:    AudioLoudnormOpts{IntegratedLoudness: -14.0, OutputExt: "mp3"},
+			wantExt: "mp3",
+			hasVN:   false,
+			hasCopy: false,
+		},
+		{
+			name:    "video to mp3 audio mastering",
+			input:   "video.webm",
+			probe:   fakeVideoProbe,
+			opts:    AudioLoudnormOpts{IntegratedLoudness: -16.0, OutputExt: "mp3"},
+			wantExt: "mp3",
+			hasVN:   true,
+			hasCopy: false,
+		},
+		{
+			name:    "video normalization preserving video",
+			input:   "video.webm",
+			probe:   fakeVideoProbe,
+			opts:    AudioLoudnormOpts{IntegratedLoudness: -16.0},
+			wantExt: "mp4",
+			hasVN:   false,
+			hasCopy: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := BuildAudioLoudnorm(tt.input, tt.probe, tt.opts)
+			if err != nil {
+				t.Fatalf("unexpected err: %v", err)
+			}
+			if res.TargetExt != tt.wantExt {
+				t.Errorf("got target ext %q, want %q", res.TargetExt, tt.wantExt)
+			}
+			if slices.Contains(res.Args, "-vn") != tt.hasVN {
+				t.Errorf("got -vn in args %v, want %v", slices.Contains(res.Args, "-vn"), tt.hasVN)
+			}
+			if slices.Contains(res.Args, "copy") != tt.hasCopy {
+				t.Errorf("got copy in args %v, want %v", slices.Contains(res.Args, "copy"), tt.hasCopy)
+			}
+		})
+	}
+}
+
+func TestBuildAudioConvert(t *testing.T) {
+	fakeVideoProbe := &probe.ProbeResult{
+		Streams: []probe.StreamInfo{
+			{CodecType: "video", Width: 1920, Height: 1080},
+			{CodecType: "audio", SampleRate: "48000", Channels: 2},
+		},
+	}
+
+	res, err := BuildAudioConvert("video.webm", fakeVideoProbe, AudioConvertOpts{
+		Format:  "flac",
+		Bitrate: "160k",
 	})
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
-	hasLoudnorm := false
-	for _, a := range res.Args {
-		if strings.Contains(a, "loudnorm=I=-14.0") {
-			hasLoudnorm = true
-			break
-		}
+	if res.TargetExt != "flac" {
+		t.Errorf("got target ext %q, want flac", res.TargetExt)
 	}
-	if !hasLoudnorm {
-		t.Errorf("missing loudnorm filter in args: %v", res.Args)
+	if !slices.Contains(res.Args, "-vn") {
+		t.Errorf("expected -vn for video input in args: %v", res.Args)
+	}
+}
+
+func TestBuildVideoTrim(t *testing.T) {
+	tests := []struct {
+		name     string
+		opts     VideoTrimOpts
+		wantCopy bool
+		wantCRF  bool
+	}{
+		{
+			name:     "fast copy trim",
+			opts:     VideoTrimOpts{Start: "00:00:10", Duration: "5", Accurate: false},
+			wantCopy: true,
+			wantCRF:  false,
+		},
+		{
+			name:     "accurate re-encode trim",
+			opts:     VideoTrimOpts{Start: "00:00:10", End: "00:00:15", Accurate: true},
+			wantCopy: false,
+			wantCRF:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := BuildVideoTrim("video.mp4", nil, tt.opts)
+			if err != nil {
+				t.Fatalf("unexpected err: %v", err)
+			}
+			if slices.Contains(res.Args, "copy") != tt.wantCopy {
+				t.Errorf("got copy in args %v, want %v", slices.Contains(res.Args, "copy"), tt.wantCopy)
+			}
+			if slices.Contains(res.Args, "-crf") != tt.wantCRF {
+				t.Errorf("got -crf in args %v, want %v", slices.Contains(res.Args, "-crf"), tt.wantCRF)
+			}
+		})
 	}
 }
 
