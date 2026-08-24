@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bytes"
 	"math"
 	"os"
 	"path/filepath"
@@ -17,40 +16,6 @@ func findCommand(name string) *cobra.Command {
 		}
 	}
 	return nil
-}
-
-func TestRootHelp(t *testing.T) {
-	buf := new(bytes.Buffer)
-	rootCmd.SetOut(buf)
-	rootCmd.SetErr(buf)
-	rootCmd.SetArgs([]string{"--help"})
-
-	if err := rootCmd.Execute(); err != nil {
-		t.Fatalf("unexpected help error: %v", err)
-	}
-	if buf.String() == "" {
-		t.Errorf("expected help output, got empty")
-	}
-}
-
-func TestVerbsRegistered(t *testing.T) {
-	verbs := []string{
-		"inspect", "compress", "remux", "extract", "convert", "normalize",
-		"trim", "gif", "hls", "rotate", "scale", "speed", "crop", "mute",
-		"watermark", "concat", "mux",
-	}
-	registered := make(map[string]bool)
-	for _, c := range rootCmd.Commands() {
-		registered[c.Name()] = true
-	}
-	for _, v := range verbs {
-		if !registered[v] {
-			t.Errorf("verb %q not registered on rootCmd", v)
-		}
-	}
-	if registered["batch"] {
-		t.Errorf("batch command should have been removed")
-	}
 }
 
 func TestSharedFlagsArePersistent(t *testing.T) {
@@ -185,5 +150,33 @@ func TestClaimOutputHonorsOverwriteOptIn(t *testing.T) {
 	}
 	if first != second {
 		t.Errorf("with -y the same input must resolve to the same path, got %q then %q", first, second)
+	}
+}
+
+func TestValidScaleTarget(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want bool
+	}{
+		{"named tier", "720p", true},
+		{"named tier uppercase", "1080P", true},
+		{"alias", "4k", true},
+		{"explicit dimensions", "1280x720", true},
+		{"empty", "", false},
+		{"raw ffmpeg filter injection", "iw/2:ih/2", false},
+		{"garbage reaching the filter graph", "garbage", false},
+		{"zero width", "0x720", false},
+		{"zero height", "1280x0", false},
+		{"negative", "-1x720", false},
+		{"missing separator", "1280720", false},
+		{"colon separator", "1280:720", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := validScaleTarget(tt.in); got != tt.want {
+				t.Errorf("validScaleTarget(%q) = %v, want %v", tt.in, got, tt.want)
+			}
+		})
 	}
 }

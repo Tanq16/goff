@@ -17,6 +17,8 @@ var extractCmd = &cobra.Command{
 	Short: "Pull the audio stream out of a video into an audio file",
 	Args:  cobra.ArbitraryArgs,
 	Run: func(cmd *cobra.Command, args []string) {
+		requireOneOf("to", extractFlags.to, "mp3", "aac", "m4a", "flac", "opus", "wav")
+
 		runFiles("extract", args, func(input string, p *probe.ProbeResult) (*ops.OpResult, error) {
 			return ops.BuildVideoExtract(input, p, ops.VideoExtractOpts{
 				Format:  extractFlags.to,

@@ -19,6 +19,8 @@ var convertCmd = &cobra.Command{
 	Short: "Transcode audio between formats, sample rates, and channel counts",
 	Args:  cobra.ArbitraryArgs,
 	Run: func(cmd *cobra.Command, args []string) {
+		requireOneOf("to", convertFlags.to, "mp3", "aac", "m4a", "flac", "opus", "wav", "ogg")
+
 		runFiles("convert", args, func(input string, p *probe.ProbeResult) (*ops.OpResult, error) {
 			return ops.BuildAudioConvert(input, p, ops.AudioConvertOpts{
 				Format:     convertFlags.to,

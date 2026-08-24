@@ -16,6 +16,8 @@ var remuxCmd = &cobra.Command{
 	Short: "Switch container without re-encoding a single stream",
 	Args:  cobra.ArbitraryArgs,
 	Run: func(cmd *cobra.Command, args []string) {
+		requireOneOf("to", remuxFlags.to, "mp4", "mkv", "mov")
+
 		runFiles("remux", args, func(input string, p *probe.ProbeResult) (*ops.OpResult, error) {
 			return ops.BuildVideoRemux(input, p, ops.VideoRemuxOpts{
 				TargetExt: remuxFlags.to,

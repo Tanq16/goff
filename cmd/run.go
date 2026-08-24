@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -26,6 +29,23 @@ type fileResult struct {
 	OutSize  int64
 	Duration time.Duration
 	Err      error
+}
+
+func requireOneOf(flag string, value string, allowed ...string) {
+	if slices.Contains(allowed, value) {
+		return
+	}
+	utils.PrintFatal(fmt.Sprintf("--%s must be one of %s, got %q", flag, strings.Join(allowed, ", "), value), nil)
+}
+
+var dimensionsPattern = regexp.MustCompile(`^[1-9][0-9]*x[1-9][0-9]*$`)
+
+func validScaleTarget(s string) bool {
+	switch strings.ToLower(s) {
+	case "4k", "2160p", "1440p", "2k", "1080p", "fhd", "720p", "hd", "480p", "sd":
+		return true
+	}
+	return dimensionsPattern.MatchString(strings.ToLower(s))
 }
 
 func requireInputs(verb string, args []string) {

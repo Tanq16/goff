@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -20,6 +22,13 @@ var transformFlags struct {
 }
 
 func runTransform(verb string, args []string) {
+	if transformFlags.rotate != "" {
+		requireOneOf("rotate", strings.ToLower(transformFlags.rotate), "90", "180", "270", "hflip", "vflip")
+	}
+	if transformFlags.scale != "" && !validScaleTarget(transformFlags.scale) {
+		utils.PrintFatal(fmt.Sprintf("--scale must be a tier such as 720p, 1080p, 4k, or WxH like 1280x720, got %q", transformFlags.scale), nil)
+	}
+
 	opts := ops.VideoTransformOpts{
 		Rotate:       transformFlags.rotate,
 		Scale:        transformFlags.scale,
@@ -69,6 +78,7 @@ var rotateCmd = &cobra.Command{
 		if transformFlags.by == "" {
 			utils.PrintFatal("rotate needs --by (90, 180, 270, hflip, or vflip)", nil)
 		}
+		requireOneOf("by", strings.ToLower(transformFlags.by), "90", "180", "270", "hflip", "vflip")
 		transformFlags.rotate = transformFlags.by
 		runTransform("rotate", args)
 	},
@@ -81,6 +91,9 @@ var scaleCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		if transformFlags.by == "" {
 			utils.PrintFatal("scale needs --by (720p, 1080p, 4k, or WxH)", nil)
+		}
+		if !validScaleTarget(transformFlags.by) {
+			utils.PrintFatal(fmt.Sprintf("--by must be a tier such as 720p, 1080p, 4k, or WxH like 1280x720, got %q", transformFlags.by), nil)
 		}
 		transformFlags.scale = transformFlags.by
 		runTransform("scale", args)

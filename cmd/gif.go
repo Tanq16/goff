@@ -20,6 +20,8 @@ var gifCmd = &cobra.Command{
 	Short: "Render an animated GIF or WebP loop from video",
 	Args:  cobra.ArbitraryArgs,
 	Run: func(cmd *cobra.Command, args []string) {
+		requireOneOf("to", gifFlags.to, "gif", "webp")
+
 		runFiles("gif", args, func(input string, p *probe.ProbeResult) (*ops.OpResult, error) {
 			return ops.BuildVideoGIF(input, p, ops.VideoGIFOpts{
 				Format:   gifFlags.to,

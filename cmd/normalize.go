@@ -19,6 +19,10 @@ var normalizeCmd = &cobra.Command{
 	Short: "Apply EBU R128 loudness normalization to audio or video",
 	Args:  cobra.ArbitraryArgs,
 	Run: func(cmd *cobra.Command, args []string) {
+		if normalizeFlags.to != "" {
+			requireOneOf("to", normalizeFlags.to, "mp3", "m4a", "aac", "flac", "wav", "ogg", "opus", "mp4", "mkv", "mov")
+		}
+
 		runFiles("normalize", args, func(input string, p *probe.ProbeResult) (*ops.OpResult, error) {
 			return ops.BuildAudioLoudnorm(input, p, ops.AudioLoudnormOpts{
 				IntegratedLoudness: normalizeFlags.lufs,
