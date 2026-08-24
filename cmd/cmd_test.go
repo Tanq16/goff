@@ -180,3 +180,70 @@ func TestValidScaleTarget(t *testing.T) {
 		})
 	}
 }
+
+func TestEnumFlagSet(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      string
+		want    string
+		wantErr bool
+	}{
+		{"exact match", "webp", "webp", false},
+		{"uppercase is normalized", "WEBP", "webp", false},
+		{"mixed case is normalized", "WebP", "webp", false},
+		{"not in set", "jpg", "", true},
+		{"empty", "", "", true},
+		{"prefix of a valid value", "we", "", true},
+		{"valid value with whitespace", " webp", "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var target string
+			f := newEnum(&target, "gif", "gif", "webp")
+			err := f.Set(tt.in)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("Set(%q) err = %v, wantErr %v", tt.in, err, tt.wantErr)
+			}
+			if err != nil {
+				if target != "gif" {
+					t.Errorf("Set(%q) failed but still changed the target to %q", tt.in, target)
+				}
+				return
+			}
+			if target != tt.want {
+				t.Errorf("Set(%q) stored %q, want %q", tt.in, target, tt.want)
+			}
+		})
+	}
+}
+
+func TestBoundedFloatSet(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      string
+		wantErr bool
+	}{
+		{"inside range", "0.5", false},
+		{"at inclusive max", "1", false},
+		{"just inside min", "0.0001", false},
+		{"at exclusive min", "0", true},
+		{"below min", "-1", true},
+		{"above max", "1.0001", true},
+		{"well above max", "5", true},
+		{"not a number", "half", true},
+		{"empty", "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var target float64
+			f := newBoundedFloat(&target, 1.0, 0, 1.0, "greater than 0 and at most 1")
+			err := f.Set(tt.in)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("Set(%q) err = %v, wantErr %v", tt.in, err, tt.wantErr)
+			}
+			if err != nil && target != 1.0 {
+				t.Errorf("Set(%q) failed but still changed the target to %v", tt.in, target)
+			}
+		})
+	}
+}

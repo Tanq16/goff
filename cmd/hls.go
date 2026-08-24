@@ -5,7 +5,6 @@ import (
 
 	"github.com/Tanq16/goff/internal/ops"
 	"github.com/Tanq16/goff/internal/probe"
-	"github.com/Tanq16/goff/utils"
 )
 
 var hlsFlags struct {
@@ -19,14 +18,9 @@ var hlsCmd = &cobra.Command{
 	Short: "Package video into an HLS VoD playlist with segments",
 	Args:  cobra.ArbitraryArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		var format ops.HLSFormat
-		switch hlsFlags.to {
-		case "fmp4":
-			format = ops.HLSFormatFMP4
-		case "ts", "mpegts":
+		format := ops.HLSFormatFMP4
+		if hlsFlags.to == "ts" {
 			format = ops.HLSFormatMPEGTS
-		default:
-			utils.PrintFatal("--to must be fmp4 or ts, got "+hlsFlags.to, nil)
 		}
 
 		runFiles("hls", args, func(input string, p *probe.ProbeResult) (*ops.OpResult, error) {
@@ -40,7 +34,7 @@ var hlsCmd = &cobra.Command{
 }
 
 func init() {
-	hlsCmd.Flags().StringVar(&hlsFlags.to, "to", "fmp4", "Segment type: fmp4 or ts")
+	hlsCmd.Flags().Var(newEnum(&hlsFlags.to, "fmp4", "fmp4", "ts"), "to", "Segment type")
 	hlsCmd.Flags().IntVar(&hlsFlags.segment, "segment", 6, "Segment length in seconds")
 	hlsCmd.Flags().IntVar(&hlsFlags.crf, "crf", 21, "Quality factor, lower is better")
 

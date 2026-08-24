@@ -25,26 +25,10 @@ var watermarkCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		video := args[0]
 
-		var pos ops.WatermarkPosition
-		switch watermarkFlags.at {
-		case "top-right":
-			pos = ops.PosTopRight
-		case "top-left":
-			pos = ops.PosTopLeft
-		case "bottom-right":
-			pos = ops.PosBottomRight
-		case "bottom-left":
-			pos = ops.PosBottomLeft
-		case "center":
-			pos = ops.PosCenter
-		default:
-			utils.PrintFatal("--at must be top-right, top-left, bottom-right, bottom-left, or center, got "+watermarkFlags.at, nil)
-		}
-
 		res, err := ops.BuildMultiWatermark(ops.MultiWatermarkOpts{
 			VideoInput:     video,
 			WatermarkInput: watermarkFlags.logo,
-			Position:       pos,
+			Position:       ops.WatermarkPosition(watermarkFlags.at),
 			ScalePercent:   watermarkFlags.width,
 			MarginPercent:  watermarkFlags.margin,
 			Opacity:        watermarkFlags.opacity,
@@ -65,10 +49,10 @@ var watermarkCmd = &cobra.Command{
 func init() {
 	watermarkCmd.Flags().StringVar(&watermarkFlags.logo, "logo", "", "Image file to overlay (required)")
 	watermarkCmd.MarkFlagRequired("logo")
-	watermarkCmd.Flags().StringVar(&watermarkFlags.at, "at", "top-right", "Corner: top-right, top-left, bottom-right, bottom-left, center")
+	watermarkCmd.Flags().Var(newEnum(&watermarkFlags.at, "top-right", "top-right", "top-left", "bottom-right", "bottom-left", "center"), "at", "Overlay position")
 	watermarkCmd.Flags().IntVar(&watermarkFlags.width, "width", 15, "Overlay width as a percent of video width")
 	watermarkCmd.Flags().IntVar(&watermarkFlags.margin, "margin", 2, "Edge margin as a percent of video size")
-	watermarkCmd.Flags().Float64Var(&watermarkFlags.opacity, "opacity", 1.0, "Overlay opacity from 0.0 to 1.0")
+	watermarkCmd.Flags().Var(newBoundedFloat(&watermarkFlags.opacity, 1.0, 0, 1.0, "greater than 0 and at most 1"), "opacity", "Overlay opacity")
 
 	rootCmd.AddCommand(watermarkCmd)
 }

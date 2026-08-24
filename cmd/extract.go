@@ -17,8 +17,6 @@ var extractCmd = &cobra.Command{
 	Short: "Pull the audio stream out of a video into an audio file",
 	Args:  cobra.ArbitraryArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		requireOneOf("to", extractFlags.to, "mp3", "aac", "m4a", "flac", "opus", "wav")
-
 		runFiles("extract", args, func(input string, p *probe.ProbeResult) (*ops.OpResult, error) {
 			return ops.BuildVideoExtract(input, p, ops.VideoExtractOpts{
 				Format:  extractFlags.to,
@@ -29,7 +27,7 @@ var extractCmd = &cobra.Command{
 }
 
 func init() {
-	extractCmd.Flags().StringVar(&extractFlags.to, "to", "mp3", "Audio format: mp3, aac, flac, opus, wav")
+	extractCmd.Flags().Var(newEnum(&extractFlags.to, "mp3", "mp3", "aac", "m4a", "flac", "opus", "wav"), "to", "Audio format")
 	extractCmd.Flags().StringVar(&extractFlags.bitrate, "bitrate", "", "Audio bitrate, e.g. 320k (format default when unset)")
 
 	rootCmd.AddCommand(extractCmd)

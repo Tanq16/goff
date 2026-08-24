@@ -19,10 +19,6 @@ var normalizeCmd = &cobra.Command{
 	Short: "Apply EBU R128 loudness normalization to audio or video",
 	Args:  cobra.ArbitraryArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		if normalizeFlags.to != "" {
-			requireOneOf("to", normalizeFlags.to, "mp3", "m4a", "aac", "flac", "wav", "ogg", "opus", "mp4", "mkv", "mov")
-		}
-
 		runFiles("normalize", args, func(input string, p *probe.ProbeResult) (*ops.OpResult, error) {
 			return ops.BuildAudioLoudnorm(input, p, ops.AudioLoudnormOpts{
 				IntegratedLoudness: normalizeFlags.lufs,
@@ -38,7 +34,7 @@ func init() {
 	normalizeCmd.Flags().Float64Var(&normalizeFlags.lufs, "lufs", -16.0, "Integrated loudness target in LUFS")
 	normalizeCmd.Flags().Float64Var(&normalizeFlags.peak, "peak", -1.5, "True peak ceiling in dBTP")
 	normalizeCmd.Flags().Float64Var(&normalizeFlags.lra, "range", 11.0, "Loudness range target")
-	normalizeCmd.Flags().StringVar(&normalizeFlags.to, "to", "", "Output format, e.g. mp3 (keeps the source container when unset)")
+	normalizeCmd.Flags().Var(newEnum(&normalizeFlags.to, "", "mp3", "m4a", "aac", "flac", "wav", "ogg", "opus", "mp4", "mkv", "mov"), "to", "Output format (keeps the source container when unset)")
 
 	rootCmd.AddCommand(normalizeCmd)
 }

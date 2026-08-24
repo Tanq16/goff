@@ -20,8 +20,6 @@ var gifCmd = &cobra.Command{
 	Short: "Render an animated GIF or WebP loop from video",
 	Args:  cobra.ArbitraryArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		requireOneOf("to", gifFlags.to, "gif", "webp")
-
 		runFiles("gif", args, func(input string, p *probe.ProbeResult) (*ops.OpResult, error) {
 			return ops.BuildVideoGIF(input, p, ops.VideoGIFOpts{
 				Format:   gifFlags.to,
@@ -35,7 +33,7 @@ var gifCmd = &cobra.Command{
 }
 
 func init() {
-	gifCmd.Flags().StringVar(&gifFlags.to, "to", "gif", "Output format: gif or webp")
+	gifCmd.Flags().Var(newEnum(&gifFlags.to, "gif", "gif", "webp"), "to", "Output format")
 	gifCmd.Flags().IntVar(&gifFlags.width, "width", 480, "Output width in pixels, height follows the aspect ratio")
 	gifCmd.Flags().IntVar(&gifFlags.fps, "fps", 15, "Frames per second")
 	gifCmd.Flags().StringVar(&gifFlags.start, "start", "", "Start position, e.g. 00:00:05")

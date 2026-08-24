@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -29,13 +28,6 @@ type fileResult struct {
 	OutSize  int64
 	Duration time.Duration
 	Err      error
-}
-
-func requireOneOf(flag string, value string, allowed ...string) {
-	if slices.Contains(allowed, value) {
-		return
-	}
-	utils.PrintFatal(fmt.Sprintf("--%s must be one of %s, got %q", flag, strings.Join(allowed, ", "), value), nil)
 }
 
 var dimensionsPattern = regexp.MustCompile(`^[1-9][0-9]*x[1-9][0-9]*$`)
