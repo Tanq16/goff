@@ -7,7 +7,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/Tanq16/goff/internal/ops"
-	"github.com/Tanq16/goff/internal/presets"
 	"github.com/Tanq16/goff/internal/probe"
 )
 
@@ -417,24 +416,45 @@ func NewOptionsModel(actionID string, inputPath string, p *probe.ProbeResult, fi
 			},
 		}
 
-	case "presets_menu", "multi_batch":
-		title = "Select Preset"
-		var available []presets.Preset
-		if actionID == "multi_batch" || p == nil {
-			available = presets.List()
-		} else {
-			available = presets.MatchPresetForMedia(p)
-		}
-		for _, pr := range available {
-			presetCopy := pr
-			choices = append(choices, OptionChoice{
-				ID:          presetCopy.ID,
-				Title:       presetCopy.Name,
-				Description: presetCopy.Description,
+	case "multi_batch":
+		title = "Select Batch Operation"
+		choices = []OptionChoice{
+			{
+				ID: "batch_hevc", Title: "Compress — H.265 (CRF 30)", Description: "High compression 1080p SDR with HDR tone-mapping",
 				Build: func(in string, prb *probe.ProbeResult) (*ops.OpResult, error) {
-					return presetCopy.Build(in, prb)
+					return ops.BuildVideoOptimize(in, prb, ops.VideoOptimizeOpts{Codec: "hevc", CRF: 30, MaxHeight: 1080})
 				},
-			})
+			},
+			{
+				ID: "batch_av1", Title: "Compress — AV1 (CRF 32)", Description: "Superior compression for modern players",
+				Build: func(in string, prb *probe.ProbeResult) (*ops.OpResult, error) {
+					return ops.BuildVideoOptimize(in, prb, ops.VideoOptimizeOpts{Codec: "av1", CRF: 32, MaxHeight: 1080})
+				},
+			},
+			{
+				ID: "batch_h264", Title: "Compress — H.264 (CRF 23)", Description: "Universal playback on older devices and browsers",
+				Build: func(in string, prb *probe.ProbeResult) (*ops.OpResult, error) {
+					return ops.BuildVideoOptimize(in, prb, ops.VideoOptimizeOpts{Codec: "h264", CRF: 23, MaxHeight: 1080})
+				},
+			},
+			{
+				ID: "batch_remux", Title: "Remux to MP4 (+faststart)", Description: "Lossless stream copy to universal MP4 container",
+				Build: func(in string, prb *probe.ProbeResult) (*ops.OpResult, error) {
+					return ops.BuildVideoRemux(in, prb, ops.VideoRemuxOpts{TargetExt: "mp4"})
+				},
+			},
+			{
+				ID: "batch_extract", Title: "Extract Audio — MP3 320 kbps", Description: "Pull the audio stream out of every file",
+				Build: func(in string, prb *probe.ProbeResult) (*ops.OpResult, error) {
+					return ops.BuildVideoExtract(in, prb, ops.VideoExtractOpts{Format: "mp3", Bitrate: "320k"})
+				},
+			},
+			{
+				ID: "batch_normalize", Title: "Normalize Loudness (-16 LUFS)", Description: "EBU R128 broadcast normalization",
+				Build: func(in string, prb *probe.ProbeResult) (*ops.OpResult, error) {
+					return ops.BuildAudioLoudnorm(in, prb, ops.AudioLoudnormOpts{IntegratedLoudness: -16.0})
+				},
+			},
 		}
 	}
 

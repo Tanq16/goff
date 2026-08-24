@@ -3,23 +3,26 @@
   <h1>goff</h1>
 
   <a href="https://github.com/Tanq16/goff/actions/workflows/release.yaml"><img alt="Build Workflow" src="https://github.com/Tanq16/goff/actions/workflows/release.yaml/badge.svg"></a>&nbsp;<a href="https://github.com/Tanq16/goff/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/Tanq16/goff"></a><br><br>
-  <a href="#capabilities">Capabilities</a> &bull; <a href="#installation">Installation</a> &bull; <a href="#usage">Usage</a> &bull; <a href="#presets">Presets</a> &bull; <a href="#tips-and-notes">Tips & Notes</a>
+  <a href="#capabilities">Capabilities</a> &bull; <a href="#installation">Installation</a> &bull; <a href="#usage">Usage</a> &bull; <a href="#tips-and-notes">Tips & Notes</a>
 </div>
 
 ---
 
-**goff** (Go FFmpeg) is a lightweight, keyboard-driven Terminal User Interface (TUI) and CLI harness for FFmpeg. It eliminates the cognitive friction of remembering complex FFmpeg flags by providing intelligent media probing, curated presets, interactive wizard workflows, and headless AI-scriptable automation.
+**goff** (Go FFmpeg) is a terminal media suite for FFmpeg: one verb per operation, sensible defaults, and a keyboard-driven TUI when you would rather browse than type.
+
+It exists so you stop looking up filter syntax for the same dozen jobs. It is not a video editor or a replacement for FFmpeg itself.
 
 ## Capabilities
 
-| Category | Features | Description |
+| Category | Commands | Description |
 |----------|----------|-------------|
-| **Video Compression** | `web-optimize`, `discord-25mb`, `discord-10mb` | High-efficiency H.265 / AV1 / H.264 compression, max 1080p SDR downscale, auto Hable HDR tone-mapping |
-| **Stream Operations** | `remux`, `hls-fmp4`, `hls-ts`, `extract`, `trim`, `gif` | Instant lossless container switching, VoD HLS fMP4 / MPEG-TS packaging, audio extraction, 2-pass palettegen GIF/WebP |
-| **Transformations** | `scale`, `rotate-90`, `rotate-180`, `rotate-270`, `vertical-9-16`, `speed`, `mute` | Multi-resolution scaling, 90°/180°/270° rotation & horizontal/vertical flips, 9:16 vertical crop, pitch-corrected speed |
-| **Audio Suite** | `podcast-master`, `convert`, `normalize` | Broadcast standard EBU R128 loudness normalization (-16 LUFS), bitrate transcoding, downmixing |
-| **Multi-File & Batch** | `watermark`, `concat`, `mux`, `batch` | Watermark / logo overlays with corner/center alignment, multi-clip concatenation, external audio/subtitle muxing, parallel batch pool |
-| **Metadata Inspection** | `inspect` | Detailed stream inspector displaying codecs, profiles, resolutions, FPS, HDR transfer characteristics |
+| **Compression** | `compress` | H.265 / AV1 / H.264 re-encoding, height caps, target file size, automatic HDR tone-mapping |
+| **Containers** | `remux`, `hls` | Lossless container switching, VoD HLS packaging as fMP4 or MPEG-TS |
+| **Audio** | `extract`, `convert`, `normalize` | Audio extraction from video, format transcoding, EBU R128 loudness normalization |
+| **Transforms** | `rotate`, `scale`, `speed`, `crop`, `mute` | Rotation and flips, resolution tiers, pitch-corrected speed, 9:16 vertical crop, audio removal |
+| **Segments** | `trim`, `gif` | Time-range cuts, 2-pass palettegen GIF and animated WebP |
+| **Multi-file** | `concat`, `mux`, `watermark` | Clip joining, external audio and subtitle muxing, logo overlays |
+| **Inspection** | `inspect` | Stream table with codecs, resolutions, bitrates, and HDR transfer characteristics |
 
 ## Installation
 
@@ -49,93 +52,113 @@ make build
 
 ## Usage
 
-### 1. Interactive TUI Mode (Default)
+Every command takes one or more input files and writes alongside them, so nothing is overwritten by default. These flags work on all of them:
 
-Simply run `goff` to browse the current directory or pass a target media file to enter the interactive wizard:
+| Flag | Effect |
+|------|--------|
+| `-o`, `--output` | Explicit output path, single input only |
+| `-y`, `--yes` | Allow overwriting existing files |
+| `-j`, `--jobs` | Concurrent encodes when several inputs are given (default 2) |
+| `--for-ai` | Plain-text prefixed output for scripts and agents |
+| `--debug` | Structured logs, including the underlying FFmpeg error |
 
-```bash
-# Launch interactive file picker in current directory
-goff
-
-# Launch interactive action menu for a specific video/audio file
-goff video.mp4
-
-# Launch multi-file operations (concat, mux, batch)
-goff clip1.mp4 clip2.mp4 clip3.mp4
-```
-
-### 2. Direct Preset Execution
-
-Bypass the interactive menu for instant headless execution:
+Pass several files to any per-file command and they process in parallel:
 
 ```bash
-# Optimize video with standard web preset
-goff input.mkv --preset web-optimize
-
-# Compress video to strictly fit Discord 25MB upload limit
-goff input.mp4 --preset discord-25mb
-
-# Extract 320kbps MP3 audio from a video
-goff video.mp4 --preset extract-mp3-320
-
-# Convert video to high-quality animated GIF
-goff recording.mp4 --preset animated-gif
-
-# Crop widescreen video to 9:16 vertical for Shorts / Reels
-goff clip.mp4 --preset vertical-9-16
+goff compress *.mkv -j 4
 ```
 
-### 3. Stream & Metadata Inspection
+### Interactive TUI
 
-Inspect video, audio, and subtitle streams with formatted terminal tables:
+Run `goff` bare to browse the current directory, or hand it files to jump straight to the action menu:
+
+```bash
+goff                                  # file picker
+goff video.mp4                        # action menu for one file
+goff clip1.mp4 clip2.mp4 clip3.mp4    # multi-file operations
+```
+
+### Compress
+
+```bash
+goff compress input.mkv                       # H.265, 1080p cap, faststart
+goff compress input.mkv --codec av1 --crf 28
+goff compress input.mp4 --size 25MB           # bitrate solved to land under 25MB
+goff compress input.mkv --height 720
+```
+
+### Containers and streaming
+
+```bash
+goff remux input.mkv --to mp4     # no re-encoding
+goff hls input.mp4 --to fmp4      # VoD playlist, init.mp4, 6s segments
+goff hls input.mp4 --to ts --segment 4
+```
+
+### Audio
+
+```bash
+goff extract video.mp4 --to mp3 --bitrate 320k
+goff convert song.wav --to opus --rate 48000
+goff normalize podcast.wav --to mp3          # -16 LUFS, -1.5 dBTP
+goff normalize lecture.mp4 --lufs -14
+```
+
+### Transforms
+
+Each transform is its own verb, and `--by` carries the value that verb is named for. Sibling flags compose into a **single** encode instead of stacking generations of quality loss:
+
+```bash
+goff rotate clip.mp4 --by 90          # 90, 180, 270, hflip, vflip
+goff scale clip.mp4 --by 720p         # 720p, 1080p, 4k, or 1280x720
+goff speed clip.mp4 --by 1.5          # audio pitch corrected
+goff crop clip.mp4                    # 9:16 for Shorts / Reels
+goff mute clip.mp4
+
+goff rotate clip.mp4 --by 90 --scale 720p --mute   # one encode, three changes
+```
+
+### Segments
+
+```bash
+goff trim video.mp4 --start 00:01:30 --end 00:02:00
+goff trim video.mp4 --start 90 --duration 30 --accurate
+goff gif screencast.mp4 --width 640 --fps 20 --start 5 --duration 8
+goff gif screencast.mp4 --to webp
+```
+
+### Multi-file
+
+```bash
+goff concat part1.mp4 part2.mp4 part3.mp4
+goff concat a.mp4 b.mp4 --reencode              # for mismatched codecs
+
+goff mux video.mp4 --audio dub.m4a --replace
+goff mux video.mp4 --subs subs.srt              # embed as a track
+goff mux video.mp4 --subs subs.srt --burn       # render into the picture
+
+goff watermark video.mp4 --logo logo.png --at bottom-right --width 12 --opacity 0.6
+```
+
+### Inspection
 
 ```bash
 goff inspect movie.mkv
 ```
 
-### 4. Concurrent Batch Processing
+### Scripting and agents
 
-Process multiple media files in parallel with configurable worker concurrency:
-
-```bash
-# Compress all MP4 files with 4 parallel workers
-goff batch *.mp4 --preset web-optimize -j 4
-
-# Extract MP3 audio from all video files
-goff batch *.mkv --preset extract-mp3-320 -j 2
-```
-
-### 5. AI-Agent Scriptable Mode (`--for-ai`)
-
-Run headlessly with deterministic plain-text output prefixes (`[OK]`, `[ERROR]`, `[PROGRESS]`, `[INFO]`) and piped stdin:
+`--for-ai` swaps styled output for parseable prefixes (`[OK]`, `[ERROR]`, `[PROGRESS]`, `[INFO]`), keeps every progress line instead of redrawing one, and renders tables as Markdown:
 
 ```bash
-echo "video.mp4" | goff --for-ai
+goff compress video.mp4 --for-ai
 goff inspect video.mp4 --for-ai
 ```
 
-## Presets
-
-| Preset ID | Category | Description |
-|-----------|----------|-------------|
-| `web-optimize` | Video | High-efficiency H.265 / AV1 compression, 1080p max SDR, faststart web atom |
-| `discord-25mb` | Video | Dynamic bitrate calculation strictly fitting video under 25MB |
-| `discord-10mb` | Video | Dynamic bitrate calculation strictly fitting video under 10MB |
-| `fast-remux` | Video | Lossless zero re-encode container change into `.mp4` (+faststart) |
-| `animated-gif` | Video | 480p 15fps animated loop using 2-pass palettegen filter |
-| `extract-mp3-320`| Video | 320 kbps constant bitrate MP3 audio extraction |
-| `strip-audio` | Video | Removes all audio tracks (mute) |
-| `vertical-9-16` | Video | Center-crop 16:9 widescreen video to 9:16 vertical |
-| `podcast-master` | Audio | Broadcast standard EBU R128 loudness normalization (-16 LUFS) with 192k AAC/MP3 |
-| `normalize-audio`| Audio | General EBU R128 broadcast normalization |
-| `hls-fmp4`       | Video | VoD HLS streaming playlist with fMP4 segments & init.mp4 |
-| `hls-ts`         | Video | Classic VoD HLS playlist with MPEG-TS segments |
-| `rotate-90`      | Video | Rotates video 90 degrees clockwise |
-| `rotate-180`     | Video | Rotates video 180 degrees (upside down) |
-| `rotate-270`     | Video | Rotates video 90 degrees counter-clockwise |
-
 ## Tips and Notes
 
-- **Safe Output Naming**: `goff` never overwrites source files by default; output files are named `<basename>.<operation>.<ext>` (and incremented to `.1.<ext>` if a collision is detected). Use `-y` / `--yes` to allow overwrite.
-- **HDR Tone-Mapping**: 10-bit HDR10 and HLG videos are automatically tone-mapped to 8-bit SDR using the Hable curve during web optimization.
-- **Audio Preservation**: Multi-channel audio (5.1/7.1) can be downmixed to stereo while preserving speech dialog clarity.
+- **Safe output naming**: outputs are written as `<name>.<operation>.<ext>` next to the input, incrementing to `.1.<ext>` on a collision. Nothing is overwritten without `-y`.
+- **Composed transforms**: combining transform flags produces one encode named after the verb you typed, while a single transform keeps its descriptive name, such as `clip.rot90.mp4`.
+- **Size targets**: `--size` holds back headroom below the number you give, so a 25MB budget targets 24.5MB and the muxed result stays under the limit.
+- **HDR tone-mapping**: HDR10 and HLG sources are tone-mapped to 8-bit SDR with the Hable curve during `compress`, which takes priority over `--height` for those inputs.
+- **Failure detail**: a failed encode reports the FFmpeg error only under `--debug`, which keeps a wall of filter-graph text out of normal runs.

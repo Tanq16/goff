@@ -30,7 +30,7 @@ func NewMenuModel(p *probe.ProbeResult, fileCount int) MenuModel {
 			{ID: "multi_mux_audio", Title: "Mux External Audio into Video", Description: "Replace or add audio track to video"},
 			{ID: "multi_mux_subs", Title: "Embed Subtitles into Video", Description: "Embed soft or burn hard subtitles"},
 			{ID: "multi_watermark", Title: "Watermark / Logo Overlay", Description: "Overlay image/logo onto video with position & scale"},
-			{ID: "multi_batch", Title: "Batch Process with Preset", Description: "Apply chosen preset across all selected files"},
+			{ID: "multi_batch", Title: "Batch Process", Description: "Apply one operation across all selected files"},
 		}
 	} else if p != nil && p.IsVideo() {
 		items = []ActionItem{
@@ -41,7 +41,6 @@ func NewMenuModel(p *probe.ProbeResult, fileCount int) MenuModel {
 			{ID: "video_trim", Title: "Trim / Cut Segment", Description: "Extract specific time range by timestamps"},
 			{ID: "video_gif", Title: "Animated GIF / WebP", Description: "High-quality 2-pass palettegen animated loop"},
 			{ID: "video_transform", Title: "Transform (Scale / Rotate / 9:16 / Speed)", Description: "Scale resolution, rotate/flip, crop vertical for Shorts, change speed"},
-			{ID: "presets_menu", Title: "Built-in Presets", Description: "1-click web-optimize, discord-25mb, hls-fmp4, rotate-90, etc."},
 			{ID: "inspect", Title: "Inspect Streams & Metadata", Description: "View codecs, resolutions, bitrates, HDR parameters"},
 		}
 	} else {
@@ -49,7 +48,6 @@ func NewMenuModel(p *probe.ProbeResult, fileCount int) MenuModel {
 			{ID: "audio_convert", Title: "Transcode & Convert", Description: "Convert between MP3, AAC, Opus, FLAC, WAV, OGG"},
 			{ID: "audio_loudnorm", Title: "EBU R128 Normalization", Description: "Standard loudness normalization for podcasts & music"},
 			{ID: "audio_trim", Title: "Trim Audio", Description: "Extract specific time range from audio file"},
-			{ID: "presets_menu", Title: "Built-in Audio Presets", Description: "Podcast master, loudness normalize"},
 			{ID: "inspect", Title: "Inspect Audio Metadata", Description: "View audio stream sample rates, channels, bitrate"},
 		}
 	}
