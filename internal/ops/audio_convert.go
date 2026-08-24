@@ -59,8 +59,13 @@ func BuildAudioConvert(inputPath string, p *probe.ProbeResult, opts AudioConvert
 
 	args := []string{
 		"-i", inputPath,
-		"-c:a", codec,
 	}
+
+	if p != nil && p.IsVideo() {
+		args = append(args, "-vn")
+	}
+
+	args = append(args, "-c:a", codec)
 
 	if bitrate != "" && codec != "flac" && codec != "pcm_s16le" {
 		args = append(args, "-b:a", bitrate)
