@@ -11,8 +11,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"golang.org/x/sync/errgroup"
-
 	"github.com/Tanq16/goff/internal/engine"
 	"github.com/Tanq16/goff/internal/ops"
 	"github.com/Tanq16/goff/internal/probe"
@@ -237,8 +235,11 @@ func runMany(verb string, files []string, build buildFunc) {
 	workers := max(rootFlags.jobs, 1)
 	utils.PrintRunning(fmt.Sprintf("%s: %d files, %d workers", verb, len(files), workers))
 
-	g, ctx := errgroup.WithContext(context.Background())
-	g.SetLimit(workers)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sem := make(chan struct{}, workers)
+	var wg sync.WaitGroup
 
 	var mu sync.Mutex
 	var results []fileResult
@@ -258,16 +259,18 @@ func runMany(verb string, files []string, build buildFunc) {
 	}
 
 	for _, input := range files {
-		g.Go(func() error {
+		sem <- struct{}{}
+		wg.Go(func() {
+			defer func() { <-sem }()
 			start := time.Now()
 			res, p, outPath, err := prepare(ctx, input, build)
 			if err != nil {
 				record(fileResult{Input: input, Err: err})
-				return nil
+				return
 			}
 			if err := engine.RunFFmpeg(ctx, append(res.Args, outPath), p.TotalDuration(), nil); err != nil {
 				record(fileResult{Input: input, OrigSize: p.Format.Size(), Duration: time.Since(start), Err: err})
-				return nil
+				return
 			}
 			record(fileResult{
 				Input:    input,
@@ -276,11 +279,10 @@ func runMany(verb string, files []string, build buildFunc) {
 				OutSize:  fileSize(outPath),
 				Duration: time.Since(start),
 			})
-			return nil
 		})
 	}
 
-	_ = g.Wait()
+	wg.Wait()
 	utils.ClearLines(lineCount + 1)
 
 	var failed []fileResult
