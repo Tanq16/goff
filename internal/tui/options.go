@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,20 @@ import (
 	"github.com/Tanq16/goff/internal/ops"
 	"github.com/Tanq16/goff/internal/probe"
 )
+
+func buildMuxAudio(video, audio, mode string) (*ops.OpResult, error) {
+	hasAudio := false
+	if p, err := probe.RunProbe(context.Background(), video); err == nil {
+		hasAudio = len(p.AudioStreams()) > 0
+	}
+	return ops.BuildMultiMuxAudio(ops.MultiMuxAudioOpts{
+		VideoInput:    video,
+		Sources:       []ops.AudioSource{{Path: audio, Volume: 1.0}},
+		Mode:          mode,
+		Fit:           "video",
+		VideoHasAudio: hasAudio,
+	})
+}
 
 type OptionChoice struct {
 	ID          string
@@ -293,23 +308,21 @@ func NewOptionsModel(actionID string, inputPath string, p *probe.ProbeResult, fi
 		}
 		choices = []OptionChoice{
 			{
-				ID: "mux_replace", Title: "Replace Audio Track", Description: "Replaces primary audio stream with external audio file",
+				ID: "mux_mix", Title: "Mix into the Existing Audio", Description: "Layers the external audio over the audio the video already has",
 				Build: func(in string, pr *probe.ProbeResult) (*ops.OpResult, error) {
-					return ops.BuildMultiMuxAudio(ops.MultiMuxAudioOpts{
-						VideoInput:      vIn,
-						AudioInput:      aIn,
-						ReplaceOriginal: true,
-					})
+					return buildMuxAudio(vIn, aIn, ops.MuxModeMix)
 				},
 			},
 			{
-				ID: "mux_add", Title: "Add Secondary Audio Track", Description: "Preserves existing audio and adds external audio track",
+				ID: "mux_replace", Title: "Replace Audio Track", Description: "Replaces primary audio stream with external audio file",
 				Build: func(in string, pr *probe.ProbeResult) (*ops.OpResult, error) {
-					return ops.BuildMultiMuxAudio(ops.MultiMuxAudioOpts{
-						VideoInput:      vIn,
-						AudioInput:      aIn,
-						ReplaceOriginal: false,
-					})
+					return buildMuxAudio(vIn, aIn, ops.MuxModeReplace)
+				},
+			},
+			{
+				ID: "mux_add", Title: "Add Secondary Audio Track", Description: "Keeps both as separate selectable tracks",
+				Build: func(in string, pr *probe.ProbeResult) (*ops.OpResult, error) {
+					return buildMuxAudio(vIn, aIn, ops.MuxModeSeparate)
 				},
 			},
 		}
@@ -417,40 +430,40 @@ func NewOptionsModel(actionID string, inputPath string, p *probe.ProbeResult, fi
 		}
 
 	case "multi_batch":
-		title = "Select Batch Operation"
+		title = "Select the Operation to Apply to Every File"
 		choices = []OptionChoice{
 			{
-				ID: "batch_hevc", Title: "Compress — H.265 (CRF 30)", Description: "High compression 1080p SDR with HDR tone-mapping",
+				ID: "batch_hevc", Title: "Compress to H.265", Description: "goff compress <files> --codec hevc --crf 30",
 				Build: func(in string, prb *probe.ProbeResult) (*ops.OpResult, error) {
 					return ops.BuildVideoOptimize(in, prb, ops.VideoOptimizeOpts{Codec: "hevc", CRF: 30, MaxHeight: 1080})
 				},
 			},
 			{
-				ID: "batch_av1", Title: "Compress — AV1 (CRF 32)", Description: "Superior compression for modern players",
+				ID: "batch_av1", Title: "Compress to AV1", Description: "goff compress <files> --codec av1 --crf 32",
 				Build: func(in string, prb *probe.ProbeResult) (*ops.OpResult, error) {
 					return ops.BuildVideoOptimize(in, prb, ops.VideoOptimizeOpts{Codec: "av1", CRF: 32, MaxHeight: 1080})
 				},
 			},
 			{
-				ID: "batch_h264", Title: "Compress — H.264 (CRF 23)", Description: "Universal playback on older devices and browsers",
+				ID: "batch_h264", Title: "Compress to H.264", Description: "goff compress <files> --codec h264 --crf 23",
 				Build: func(in string, prb *probe.ProbeResult) (*ops.OpResult, error) {
 					return ops.BuildVideoOptimize(in, prb, ops.VideoOptimizeOpts{Codec: "h264", CRF: 23, MaxHeight: 1080})
 				},
 			},
 			{
-				ID: "batch_remux", Title: "Remux to MP4 (+faststart)", Description: "Lossless stream copy to universal MP4 container",
+				ID: "batch_remux", Title: "Remux to MP4", Description: "goff remux <files> --to mp4",
 				Build: func(in string, prb *probe.ProbeResult) (*ops.OpResult, error) {
 					return ops.BuildVideoRemux(in, prb, ops.VideoRemuxOpts{TargetExt: "mp4"})
 				},
 			},
 			{
-				ID: "batch_extract", Title: "Extract Audio — MP3 320 kbps", Description: "Pull the audio stream out of every file",
+				ID: "batch_extract", Title: "Extract Audio to MP3", Description: "goff extract <files> --to mp3 --bitrate 320k",
 				Build: func(in string, prb *probe.ProbeResult) (*ops.OpResult, error) {
 					return ops.BuildVideoExtract(in, prb, ops.VideoExtractOpts{Format: "mp3", Bitrate: "320k"})
 				},
 			},
 			{
-				ID: "batch_normalize", Title: "Normalize Loudness (-16 LUFS)", Description: "EBU R128 broadcast normalization",
+				ID: "batch_normalize", Title: "Normalize Loudness", Description: "goff normalize <files> --lufs -16",
 				Build: func(in string, prb *probe.ProbeResult) (*ops.OpResult, error) {
 					return ops.BuildAudioLoudnorm(in, prb, ops.AudioLoudnormOpts{IntegratedLoudness: -16.0})
 				},

@@ -30,7 +30,7 @@ func NewMenuModel(p *probe.ProbeResult, fileCount int) MenuModel {
 			{ID: "multi_mux_audio", Title: "Mux External Audio into Video", Description: "Replace or add audio track to video"},
 			{ID: "multi_mux_subs", Title: "Embed Subtitles into Video", Description: "Embed soft or burn hard subtitles"},
 			{ID: "multi_watermark", Title: "Watermark / Logo Overlay", Description: "Overlay image/logo onto video with position & scale"},
-			{ID: "multi_batch", Title: "Batch Process", Description: "Apply one operation across all selected files"},
+			{ID: "multi_batch", Title: "Apply One Operation to Every File", Description: "Runs the same operation across every selected file"},
 		}
 	} else if p != nil && p.IsVideo() {
 		items = []ActionItem{
