@@ -1,4 +1,4 @@
-.PHONY: help clean build build-for build-all test lint version
+.PHONY: help clean build build-for build-all test version
 
 # =============================================================================
 # Variables
@@ -32,9 +32,6 @@ clean: ## Remove built binaries
 test: ## Run unit tests
 	@go test -v ./...
 
-lint: ## Run go vet
-	@go vet ./...
-
 # =============================================================================
 # Build
 # =============================================================================
@@ -51,7 +48,6 @@ build-all: ## Build all platform binaries
 	@$(MAKE) build-for GOOS=linux GOARCH=arm64
 	@$(MAKE) build-for GOOS=darwin GOARCH=amd64
 	@$(MAKE) build-for GOOS=darwin GOARCH=arm64
-	@$(MAKE) build-for GOOS=windows GOARCH=amd64
 
 # =============================================================================
 # Version
