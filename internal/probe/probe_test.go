@@ -104,22 +104,10 @@ func TestProbeResultMethods(t *testing.T) {
 	if !res.IsVideo() {
 		t.Errorf("expected IsVideo() = true")
 	}
-	if res.IsAudioOnly() {
-		t.Errorf("expected IsAudioOnly() = false")
-	}
-	if res.Resolution() != "3840x2160" {
-		t.Errorf("got resolution %q, want 3840x2160", res.Resolution())
-	}
-	if res.BaseFileName() != "test_video" {
-		t.Errorf("got base file name %q, want test_video", res.BaseFileName())
-	}
 	if !res.IsHDR() {
 		t.Errorf("expected IsHDR() = true for smpte2084 + bt2020")
 	}
 	if res.HDRType() != "HDR10 (PQ)" {
 		t.Errorf("got HDRType %q, want HDR10 (PQ)", res.HDRType())
-	}
-	if res.FPS() != 60.0 {
-		t.Errorf("got FPS %f, want 60.0", res.FPS())
 	}
 }

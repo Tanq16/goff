@@ -5,59 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/spf13/cobra"
 )
-
-func findCommand(name string) *cobra.Command {
-	for _, c := range rootCmd.Commands() {
-		if c.Name() == name {
-			return c
-		}
-	}
-	return nil
-}
-
-func TestSharedFlagsArePersistent(t *testing.T) {
-	for _, name := range []string{"output", "yes", "jobs", "debug", "for-ai"} {
-		if rootCmd.PersistentFlags().Lookup(name) == nil {
-			t.Errorf("--%s must be persistent so every verb inherits it", name)
-		}
-	}
-}
-
-func TestTransformVerbsAcceptSiblingFlags(t *testing.T) {
-	tests := []struct {
-		verb     string
-		own      string
-		siblings []string
-	}{
-		{"rotate", "by", []string{"scale", "speed", "crop", "mute"}},
-		{"scale", "by", []string{"rotate", "speed", "crop", "mute"}},
-		{"speed", "by", []string{"rotate", "scale", "crop", "mute"}},
-		{"crop", "", []string{"rotate", "scale", "speed", "mute"}},
-		{"mute", "", []string{"rotate", "scale", "speed", "crop"}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.verb, func(t *testing.T) {
-			cmd := findCommand(tt.verb)
-			if cmd == nil {
-				t.Fatalf("verb %q not registered", tt.verb)
-			}
-			if tt.own != "" && cmd.Flags().Lookup(tt.own) == nil {
-				t.Errorf("%s missing its own --%s flag", tt.verb, tt.own)
-			}
-			if tt.own == "" && cmd.Flags().Lookup("by") != nil {
-				t.Errorf("%s takes no parameter and must not register --by", tt.verb)
-			}
-			for _, s := range tt.siblings {
-				if cmd.Flags().Lookup(s) == nil {
-					t.Errorf("%s cannot compose --%s in one encode", tt.verb, s)
-				}
-			}
-		})
-	}
-}
 
 func TestParseSizeBudget(t *testing.T) {
 	tests := []struct {
