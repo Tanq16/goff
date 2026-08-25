@@ -344,3 +344,206 @@ func TestBuildVideoTransform_Rotation(t *testing.T) {
 	}
 }
 
+func TestBuildMultiMixFilterGraph(t *testing.T) {
+	tests := []struct {
+		name        string
+		sources     []AudioSource
+		fit         string
+		wantFilters []string
+		absent      []string
+	}{
+		{
+			name:        "plain sources need no per-input chain",
+			sources:     []AudioSource{{Path: "a.mp3", Volume: 1.0}, {Path: "b.mp3", Volume: 1.0}},
+			wantFilters: []string{"[0:a][1:a]amix=inputs=2:duration=longest:normalize=0[aout]"},
+			absent:      []string{"adelay", "volume="},
+		},
+		{
+			name:        "offset becomes an adelay chain",
+			sources:     []AudioSource{{Path: "a.mp3", Volume: 1.0}, {Path: "b.mp3", DelayMS: 5000, Volume: 1.0}},
+			wantFilters: []string{"[1:a]adelay=5000:all=1[mix1]", "[0:a][mix1]amix=inputs=2"},
+		},
+		{
+			name:        "volume becomes a volume chain",
+			sources:     []AudioSource{{Path: "a.mp3", Volume: 1.0}, {Path: "b.mp3", Volume: 0.3}},
+			wantFilters: []string{"[1:a]volume=0.3[mix1]"},
+		},
+		{
+			name:        "offset and volume share one chain",
+			sources:     []AudioSource{{Path: "a.mp3", Volume: 1.0}, {Path: "b.mp3", DelayMS: 2500, Volume: 0.5}},
+			wantFilters: []string{"[1:a]adelay=2500:all=1,volume=0.5[mix1]"},
+		},
+		{
+			name:        "fit shortest reaches amix",
+			sources:     []AudioSource{{Path: "a.mp3", Volume: 1.0}, {Path: "b.mp3", Volume: 1.0}},
+			fit:         "shortest",
+			wantFilters: []string{"duration=shortest"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := BuildMultiMix(MultiMixOpts{Sources: tt.sources, Fit: tt.fit})
+			if err != nil {
+				t.Fatalf("unexpected err: %v", err)
+			}
+			idx := slices.Index(res.Args, "-filter_complex")
+			if idx < 0 || idx+1 >= len(res.Args) {
+				t.Fatalf("no -filter_complex in args: %v", res.Args)
+			}
+			graph := res.Args[idx+1]
+			for _, want := range tt.wantFilters {
+				if !strings.Contains(graph, want) {
+					t.Errorf("graph %q missing %q", graph, want)
+				}
+			}
+			for _, gone := range tt.absent {
+				if strings.Contains(graph, gone) {
+					t.Errorf("graph %q should not contain %q", graph, gone)
+				}
+			}
+		})
+	}
+}
+
+func TestBuildMultiMixRejectsSingleInput(t *testing.T) {
+	if _, err := BuildMultiMix(MultiMixOpts{Sources: []AudioSource{{Path: "a.mp3"}}}); err == nil {
+		t.Error("expected an error for a single input")
+	}
+}
+
+func TestBuildMultiMuxAudioModes(t *testing.T) {
+	sources := []AudioSource{{Path: "music.mp3", Volume: 1.0}}
+
+	tests := []struct {
+		name    string
+		mode    string
+		hasAudi bool
+		want    []string
+		absent  []string
+	}{
+		{
+			name:    "mix folds the original into one track",
+			mode:    MuxModeMix,
+			hasAudi: true,
+			want:    []string{"[0:a][1:a]amix=inputs=2"},
+		},
+		{
+			name:    "mix on a silent video uses the source alone",
+			mode:    MuxModeMix,
+			hasAudi: false,
+			want:    []string{"[1:a]amix=inputs=1"},
+		},
+		{
+			name:    "replace drops the original",
+			mode:    MuxModeReplace,
+			hasAudi: true,
+			want:    []string{"[1:a]amix=inputs=1"},
+			absent:  []string{"[0:a]"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := BuildMultiMuxAudio(MultiMuxAudioOpts{
+				VideoInput:    "in.mp4",
+				Sources:       sources,
+				Mode:          tt.mode,
+				Fit:           "video",
+				VideoHasAudio: tt.hasAudi,
+			})
+			if err != nil {
+				t.Fatalf("unexpected err: %v", err)
+			}
+			graph := res.Args[slices.Index(res.Args, "-filter_complex")+1]
+			for _, want := range tt.want {
+				if !strings.Contains(graph, want) {
+					t.Errorf("graph %q missing %q", graph, want)
+				}
+			}
+			for _, gone := range tt.absent {
+				if strings.Contains(graph, gone) {
+					t.Errorf("graph %q should not contain %q", graph, gone)
+				}
+			}
+		})
+	}
+
+	t.Run("separate keeps every track selectable", func(t *testing.T) {
+		res, err := BuildMultiMuxAudio(MultiMuxAudioOpts{
+			VideoInput:    "in.mp4",
+			Sources:       sources,
+			Mode:          MuxModeSeparate,
+			Fit:           "video",
+			VideoHasAudio: true,
+		})
+		if err != nil {
+			t.Fatalf("unexpected err: %v", err)
+		}
+		if slices.Contains(res.Args, "-filter_complex") {
+			t.Errorf("separate should not mix: %v", res.Args)
+		}
+		if !slices.Contains(res.Args, "0:a") || !slices.Contains(res.Args, "1:a:0") {
+			t.Errorf("expected both audio streams mapped: %v", res.Args)
+		}
+	})
+
+	t.Run("fit longest does not truncate to the video", func(t *testing.T) {
+		res, err := BuildMultiMuxAudio(MultiMuxAudioOpts{
+			VideoInput: "in.mp4", Sources: sources, Mode: MuxModeMix, Fit: "longest", VideoHasAudio: true,
+		})
+		if err != nil {
+			t.Fatalf("unexpected err: %v", err)
+		}
+		if slices.Contains(res.Args, "-shortest") {
+			t.Errorf("fit longest should not pass -shortest: %v", res.Args)
+		}
+	})
+}
+
+func TestBuildVideoTransformKeepsFiltersAlongsideSpeed(t *testing.T) {
+	withAudio := &probe.ProbeResult{
+		Streams: []probe.StreamInfo{
+			{CodecType: "video", Width: 1920, Height: 1080},
+			{CodecType: "audio"},
+		},
+	}
+
+	res, err := BuildVideoTransform("in.mp4", withAudio, VideoTransformOpts{
+		Rotate: "90",
+		Scale:  "720p",
+		Speed:  2.0,
+	})
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+
+	idx := slices.Index(res.Args, "-filter_complex")
+	if idx < 0 {
+		t.Fatalf("expected a filter_complex when speed retimes audio: %v", res.Args)
+	}
+	graph := res.Args[idx+1]
+	for _, want := range []string{"transpose=1", "scale=", "setpts=", "atempo="} {
+		if !strings.Contains(graph, want) {
+			t.Errorf("graph %q dropped %q", graph, want)
+		}
+	}
+}
+
+func TestBuildVideoTransformSpeedWithoutAudioStaysSimple(t *testing.T) {
+	silent := &probe.ProbeResult{
+		Streams: []probe.StreamInfo{{CodecType: "video", Width: 1920, Height: 1080}},
+	}
+
+	res, err := BuildVideoTransform("in.mp4", silent, VideoTransformOpts{Scale: "720p", Speed: 2.0})
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if slices.Contains(res.Args, "-filter_complex") {
+		t.Errorf("no audio to retime, expected -vf: %v", res.Args)
+	}
+	vf := res.Args[slices.Index(res.Args, "-vf")+1]
+	for _, want := range []string{"scale=", "setpts="} {
+		if !strings.Contains(vf, want) {
+			t.Errorf("vf chain %q dropped %q", vf, want)
+		}
+	}
+}
