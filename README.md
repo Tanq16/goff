@@ -8,7 +8,7 @@
 
 ---
 
-**goff** (Go FFmpeg) is a terminal media suite for FFmpeg: one verb per operation, sensible defaults, and a keyboard-driven TUI when you would rather browse than type.
+**goff** (Go FFmpeg) is a terminal media suite for FFmpeg: one verb per operation, sensible defaults, and no filter syntax to look up.
 
 It exists so you stop looking up filter syntax for the same dozen jobs. It is not a video editor or a replacement for FFmpeg itself.
 
@@ -69,16 +69,6 @@ goff compress *.mkv -j 4
 ```
 
 `goff --help` lists every command grouped by what it does, and `goff <command> --help` carries an example of the invocation you want. A run where any file failed exits non-zero.
-
-### Interactive TUI
-
-Run `goff` bare to browse the current directory, or hand it files to jump straight to the action menu:
-
-```bash
-goff                                  # file picker
-goff video.mp4                        # action menu for one file
-goff clip1.mp4 clip2.mp4 clip3.mp4    # multi-file operations
-```
 
 ### Compress
 
