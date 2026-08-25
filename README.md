@@ -18,10 +18,10 @@ It exists so you stop looking up filter syntax for the same dozen jobs. It is no
 |----------|----------|-------------|
 | **Compression** | `compress` | H.265 / AV1 / H.264 re-encoding, height caps, target file size, automatic HDR tone-mapping |
 | **Containers** | `remux`, `hls` | Lossless container switching, VoD HLS packaging as fMP4 or MPEG-TS |
-| **Audio** | `extract`, `convert`, `normalize` | Audio extraction from video, format transcoding, EBU R128 loudness normalization |
+| **Audio** | `extract`, `convert`, `normalize`, `mix` | Audio extraction from video, format transcoding, EBU R128 loudness normalization, layering tracks into one |
 | **Transforms** | `rotate`, `scale`, `speed`, `crop`, `mute` | Rotation and flips, resolution tiers, pitch-corrected speed, 9:16 vertical crop, audio removal |
 | **Segments** | `trim`, `gif` | Time-range cuts, 2-pass palettegen GIF and animated WebP |
-| **Multi-file** | `concat`, `mux`, `watermark` | Clip joining, external audio and subtitle muxing, logo overlays |
+| **Multi-file** | `concat`, `mux`, `subs`, `watermark` | Clip joining, external audio muxing, subtitle embedding, logo overlays |
 | **Inspection** | `inspect` | Stream table with codecs, resolutions, bitrates, and HDR transfer characteristics |
 
 ## Installation
@@ -68,6 +68,8 @@ Pass several files to any per-file command and they process in parallel:
 goff compress *.mkv -j 4
 ```
 
+`goff --help` lists every command grouped by what it does, and `goff <command> --help` carries an example of the invocation you want. A run where any file failed exits non-zero.
+
 ### Interactive TUI
 
 Run `goff` bare to browse the current directory, or hand it files to jump straight to the action menu:
@@ -91,7 +93,7 @@ goff compress input.mkv --height 720
 
 ```bash
 goff remux input.mkv --to mp4     # no re-encoding
-goff hls input.mp4 --to fmp4      # VoD playlist, init.mp4, 6s segments
+goff hls input.mp4 --to fmp4      # writes input.hls-fmp4/index.m3u8 plus segments
 goff hls input.mp4 --to ts --segment 4
 ```
 
@@ -102,7 +104,13 @@ goff extract video.mp4 --to mp3 --bitrate 320k
 goff convert song.wav --to opus --rate 48000
 goff normalize podcast.wav --to mp3          # -16 LUFS, -1.5 dBTP
 goff normalize lecture.mp4 --lufs -14
+
+goff mix voice.wav music.mp3                 # both play from 0
+goff mix voice.wav music.mp3:at=5:vol=0.3    # music enters 5s in, at 30% level
+goff mix a.mp3 b.mp3 --fit shortest          # stop at the shortest input
 ```
+
+`mix` layers tracks so they play at the same time. To join clips end to end instead, use `concat`.
 
 ### Transforms
 
@@ -133,9 +141,13 @@ goff gif screencast.mp4 --to webp
 goff concat part1.mp4 part2.mp4 part3.mp4
 goff concat a.mp4 b.mp4 --reencode              # for mismatched codecs
 
-goff mux video.mp4 --audio dub.m4a --replace
-goff mux video.mp4 --subs subs.srt              # embed as a track
-goff mux video.mp4 --subs subs.srt --burn       # render into the picture
+goff mux talk.mp4 --audio music.mp3:vol=0.3     # music mixed under the original audio
+goff mux talk.mp4 --audio dub.m4a --audio-mode replace
+goff mux film.mkv --audio en.m4a --audio fr.m4a --audio-mode separate
+goff mux clip.mp4 --audio bed.mp3 --fit longest # run to the end of the music
+
+goff subs video.mp4 --file subs.srt             # embed as a track
+goff subs video.mp4 --file subs.srt --burn      # render into the picture
 
 goff watermark video.mp4 --logo logo.png --at bottom-right --width 12 --opacity 0.6
 ```
@@ -159,6 +171,9 @@ goff inspect video.mp4 --for-ai
 
 - **Safe output naming**: outputs are written as `<name>.<operation>.<ext>` next to the input, incrementing to `.1.<ext>` on a collision. Nothing is overwritten without `-y`.
 - **Composed transforms**: combining transform flags produces one encode named after the verb you typed, while a single transform keeps its descriptive name, such as `clip.rot90.mp4`.
+- **Input offsets and levels**: `mix` and `mux --audio` accept `<file>:at=<time>` to delay a track and `:vol=<factor>` to change its level, both optional and in either order. A track with neither starts at 0 at its own level.
+- **Audio modes**: `mux --audio-mode` decides what happens to the audio a video already has. `mix` layers it with the new tracks into one, `replace` drops it, and `separate` keeps every track selectable.
+- **HLS layout**: each packaged video gets its own directory holding `index.m3u8`, `init.mp4`, and the segments, so two packaged videos never share a segment name.
 - **Size targets**: `--size` holds back headroom below the number you give, so a 25MB budget targets 24.5MB and the muxed result stays under the limit.
 - **HDR tone-mapping**: HDR10 and HLG sources are tone-mapped to 8-bit SDR with the Hable curve during `compress`, which takes priority over `--height` for those inputs.
 - **Failure detail**: a failed encode reports the FFmpeg error only under `--debug`, which keeps a wall of filter-graph text out of normal runs.
