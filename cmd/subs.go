@@ -39,7 +39,7 @@ var subsCmd = &cobra.Command{
 			totalSec = p.TotalDuration()
 		}
 
-		runComposed("subs", video, res, totalSec)
+		runComposed("subs", video, res, totalSec, nil)
 	},
 }
 

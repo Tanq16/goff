@@ -44,7 +44,7 @@ var watermarkCmd = &cobra.Command{
 			totalSec = p.TotalDuration()
 		}
 
-		runComposed("watermark", video, res, totalSec)
+		runComposed("watermark", video, res, totalSec, nil)
 	},
 }
 

@@ -208,9 +208,14 @@ func runSingle(verb string, input string, build buildFunc) {
 		probe.FormatBytes(p.Format.Size()), probe.FormatBytes(fileSize(outPath))))
 }
 
-func runComposed(verb string, namingInput string, res *ops.OpResult, totalSec float64) {
+func runComposed(verb string, namingInput string, res *ops.OpResult, totalSec float64, cleanup func()) {
+	if cleanup == nil {
+		cleanup = func() {}
+	}
+
 	outPath, err := engine.ResolveOutputName(namingInput, res.Suffix, res.TargetExt, rootFlags.output, rootFlags.overwrite)
 	if err != nil {
+		cleanup()
 		utils.PrintFatal("failed to resolve output path", err)
 	}
 
@@ -219,6 +224,7 @@ func runComposed(verb string, namingInput string, res *ops.OpResult, totalSec fl
 
 	label := filepath.Base(namingInput)
 	elapsed, err := encodeWithProgress(ctx, verb, label, append(res.Args, outPath), totalSec)
+	cleanup()
 	if err != nil {
 		utils.PrintFatal(fmt.Sprintf("%s failed", verb), err)
 	}
