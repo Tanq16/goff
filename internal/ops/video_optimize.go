@@ -10,6 +10,7 @@ import (
 type VideoOptimizeOpts struct {
 	Codec        string
 	CRF          int
+	Lossless     bool
 	Preset       string
 	MaxHeight    int
 	TargetSizeMB float64
@@ -27,10 +28,13 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 	crf := opts.CRF
 	preset := opts.Preset
 	var videoEncoder string
+	var losslessArgs []string
+	crfMax := 63
 
 	switch codec {
 	case "av1", "libsvtav1", "svtav1":
 		videoEncoder = "libsvtav1"
+		losslessArgs = []string{"-svtav1-params", "lossless=1"}
 		if crf == 0 {
 			crf = 32
 		}
@@ -39,6 +43,7 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 		}
 	case "h264", "libx264", "x264":
 		videoEncoder = "libx264"
+		losslessArgs = []string{"-crf", "0"}
 		if crf == 0 {
 			crf = 23
 		}
@@ -47,6 +52,8 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 		}
 	default:
 		videoEncoder = "libx265"
+		losslessArgs = []string{"-x265-params", "lossless=1"}
+		crfMax = 51
 		if crf == 0 {
 			crf = 30
 		}
@@ -54,16 +61,19 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 			preset = "medium"
 		}
 	}
+	crf = min(crf, crfMax)
 
 	var vfFilters []string
-	if p != nil && p.IsHDR() {
-		vfFilters = append(vfFilters, probe.ToneMapFilter())
-	} else {
-		maxH := opts.MaxHeight
-		if maxH == 0 {
-			maxH = 1080
+	if !opts.Lossless {
+		if p != nil && p.IsHDR() {
+			vfFilters = append(vfFilters, probe.ToneMapFilter())
+		} else {
+			maxH := opts.MaxHeight
+			if maxH == 0 {
+				maxH = 1080
+			}
+			vfFilters = append(vfFilters, fmt.Sprintf("scale='min(1920,iw)':'min(%d,ih)':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2", maxH))
 		}
-		vfFilters = append(vfFilters, fmt.Sprintf("scale='min(1920,iw)':'min(%d,ih)':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2", maxH))
 	}
 
 	var args []string
@@ -75,7 +85,13 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 
 	args = append(args, "-c:v", videoEncoder)
 
-	if opts.TargetSizeMB > 0 && p != nil && p.TotalDuration() > 0 {
+	switch {
+	case opts.Lossless:
+		args = append(args, losslessArgs...)
+		if preset != "" {
+			args = append(args, "-preset", preset)
+		}
+	case opts.TargetSizeMB > 0 && p != nil && p.TotalDuration() > 0:
 		dur := p.TotalDuration()
 		audioKbps := 128.0
 		totalBitrateKbps := (opts.TargetSizeMB * 8192.0) / dur
@@ -88,7 +104,7 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 			"-maxrate", fmt.Sprintf("%dk", int(videoBitrateKbps*1.5)),
 			"-bufsize", fmt.Sprintf("%dk", int(videoBitrateKbps*2)),
 		)
-	} else {
+	default:
 		args = append(args, "-crf", fmt.Sprintf("%d", crf))
 		if preset != "" {
 			args = append(args, "-preset", preset)
@@ -103,6 +119,9 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 	args = append(args, "-movflags", "+faststart")
 
 	suffix := "optimized"
+	if opts.Lossless {
+		suffix = "lossless"
+	}
 	if opts.CustomSuffix != "" {
 		suffix = opts.CustomSuffix
 	}

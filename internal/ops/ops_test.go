@@ -40,6 +40,55 @@ func TestBuildVideoOptimize(t *testing.T) {
 	}
 }
 
+func TestBuildVideoOptimizeLossless(t *testing.T) {
+	hdrProbe := &probe.ProbeResult{
+		Format: probe.FormatInfo{
+			DurationStr: "60.0",
+		},
+		Streams: []probe.StreamInfo{
+			{
+				CodecType:     "video",
+				Width:         3840,
+				Height:        2160,
+				ColorTransfer: "smpte2084",
+			},
+		},
+	}
+
+	tests := []struct {
+		name     string
+		codec    string
+		wantArgs []string
+	}{
+		{"hevc", "hevc", []string{"libx265", "-x265-params", "lossless=1"}},
+		{"av1", "av1", []string{"libsvtav1", "-svtav1-params", "lossless=1"}},
+		{"h264", "h264", []string{"libx264", "-crf", "0"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := BuildVideoOptimize("input.mkv", hdrProbe, VideoOptimizeOpts{
+				Codec:     tt.codec,
+				Lossless:  true,
+				MaxHeight: 720,
+			})
+			if err != nil {
+				t.Fatalf("unexpected err: %v", err)
+			}
+			for _, want := range tt.wantArgs {
+				if !slices.Contains(res.Args, want) {
+					t.Errorf("expected %q in args: %v", want, res.Args)
+				}
+			}
+			if slices.Contains(res.Args, "-vf") {
+				t.Errorf("lossless must not scale or tone-map: %v", res.Args)
+			}
+			if res.Suffix != "lossless" {
+				t.Errorf("got suffix %q, want lossless", res.Suffix)
+			}
+		})
+	}
+}
+
 func TestBuildVideoGIF(t *testing.T) {
 	res, err := BuildVideoGIF("input.mp4", nil, VideoGIFOpts{
 		Width:  320,

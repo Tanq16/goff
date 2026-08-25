@@ -16,7 +16,7 @@ It exists so you stop looking up filter syntax for the same dozen jobs. It is no
 
 | Category | Commands | Description |
 |----------|----------|-------------|
-| **Compression** | `compress` | H.265 / AV1 / H.264 re-encoding, height caps, target file size, automatic HDR tone-mapping |
+| **Compression** | `compress` | H.265 / AV1 / H.264 re-encoding, height caps, target file size, lossless mode, automatic HDR tone-mapping |
 | **Containers** | `remux`, `hls` | Lossless container switching, VoD HLS packaging as fMP4 or MPEG-TS |
 | **Audio** | `extract`, `convert`, `normalize`, `mix` | Audio extraction from video, format transcoding, EBU R128 loudness normalization, layering tracks into one |
 | **Transforms** | `rotate`, `scale`, `speed`, `crop`, `mute` | Rotation and flips, resolution tiers, pitch-corrected speed, 9:16 vertical crop, audio removal |
@@ -77,6 +77,7 @@ goff compress input.mkv                       # H.265, 1080p cap, faststart
 goff compress input.mkv --codec av1 --crf 28
 goff compress input.mp4 --size 25MB           # bitrate solved to land under 25MB
 goff compress input.mkv --height 720
+goff compress master.mov --lossless           # no video quality loss, source resolution kept
 ```
 
 ### Containers and streaming
@@ -166,5 +167,6 @@ goff inspect video.mp4 --for-ai
 - **HLS layout**: each packaged video gets its own directory holding `index.m3u8` and the segments, so two packaged videos never share a segment name. fMP4 packaging adds an `init.mp4` next to them.
 - **Size targets**: `--size` holds back headroom below the number you give, so a 25MB budget targets 24.5MB and the muxed result stays under the limit.
 - **HDR tone-mapping**: HDR10 and HLG sources are tone-mapped to 8-bit SDR with the Hable curve during `compress`, which takes priority over `--height` for those inputs.
-- **Out-of-range numbers**: a numeric flag given a value past its range is pulled to the nearest end of that range rather than rejected. `--help` prints the accepted range as the flag's type, such as `--crf 1..63`.
+- **Lossless compression**: `compress --lossless` keeps the source resolution and skips tone-mapping, since both are lossy, and it re-encodes audio to AAC like every other `compress` run. It cannot be combined with `--crf`, `--size`, or `--height`.
+- **Out-of-range numbers**: a numeric flag given a value past its range is pulled to the nearest end of that range rather than rejected. `--help` prints the accepted range as the flag's type, such as `--crf 1..63`. H.265 caps at 51, so a higher `--crf` lands there when `--codec hevc` is in play.
 - **Failure detail**: a failed encode reports the FFmpeg error only under `--debug`, which keeps a wall of filter-graph text out of normal runs.
