@@ -169,29 +169,64 @@ func TestBoundedFloatSet(t *testing.T) {
 	tests := []struct {
 		name    string
 		in      string
+		want    float64
 		wantErr bool
 	}{
-		{"inside range", "0.5", false},
-		{"at inclusive max", "1", false},
-		{"at inclusive min", "0.01", false},
-		{"just below min", "0.009", true},
-		{"zero", "0", true},
-		{"below min", "-1", true},
-		{"above max", "1.0001", true},
-		{"well above max", "5", true},
-		{"not a number", "half", true},
-		{"empty", "", true},
+		{"inside range", "0.5", 0.5, false},
+		{"at inclusive max", "1", 1.0, false},
+		{"at inclusive min", "0.01", 0.01, false},
+		{"just below min clamps up", "0.009", 0.01, false},
+		{"zero clamps up", "0", 0.01, false},
+		{"negative clamps up", "-1", 0.01, false},
+		{"just above max clamps down", "1.0001", 1.0, false},
+		{"well above max clamps down", "5", 1.0, false},
+		{"infinity clamps down", "Inf", 1.0, false},
+		{"not a number", "half", 1.0, true},
+		{"nan", "NaN", 1.0, true},
+		{"empty", "", 1.0, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var target float64
-			f := newBoundedFloat(&target, 1.0, 0.01, 1.0, "between 0.01 and 1")
+			f := newBoundedFloat(&target, 1.0, 0.01, 1.0)
 			err := f.Set(tt.in)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("Set(%q) err = %v, wantErr %v", tt.in, err, tt.wantErr)
 			}
-			if err != nil && target != 1.0 {
-				t.Errorf("Set(%q) failed but still changed the target to %v", tt.in, target)
+			if target != tt.want {
+				t.Errorf("Set(%q) stored %v, want %v", tt.in, target, tt.want)
+			}
+		})
+	}
+}
+
+func TestBoundedIntSet(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      string
+		want    int
+		wantErr bool
+	}{
+		{"inside range", "30", 30, false},
+		{"at inclusive min", "1", 1, false},
+		{"at inclusive max", "63", 63, false},
+		{"zero clamps up", "0", 1, false},
+		{"negative clamps up", "-5", 1, false},
+		{"above max clamps down", "200", 63, false},
+		{"fractional", "28.5", 21, true},
+		{"not a number", "high", 21, true},
+		{"empty", "", 21, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var target int
+			f := newBoundedInt(&target, 21, 1, 63)
+			err := f.Set(tt.in)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("Set(%q) err = %v, wantErr %v", tt.in, err, tt.wantErr)
+			}
+			if target != tt.want {
+				t.Errorf("Set(%q) stored %d, want %d", tt.in, target, tt.want)
 			}
 		})
 	}

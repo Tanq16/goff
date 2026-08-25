@@ -18,9 +18,8 @@ var transformFlags struct {
 var rotations = []string{"90", "180", "270", "hflip", "vflip"}
 
 const (
-	speedMin    = 0.5
-	speedMax    = 100.0
-	speedBounds = "between 0.5 and 100"
+	speedMin = 0.5
+	speedMax = 100.0
 )
 
 func runTransform(verb string, args []string) {
@@ -55,7 +54,7 @@ func addTransformFlags(cmd *cobra.Command, own string) {
 		cmd.Flags().Var(newScale(&transformFlags.scale), "scale", "Also scale")
 	}
 	if own != "speed" {
-		cmd.Flags().Var(newBoundedFloat(&transformFlags.speed, 0, speedMin, speedMax, speedBounds), "speed", "Also change speed, e.g. 1.5 (audio pitch corrected)")
+		cmd.Flags().Var(newBoundedFloat(&transformFlags.speed, 0, speedMin, speedMax), "speed", "Also change speed, e.g. 1.5 (audio pitch corrected)")
 	}
 	if own != "crop" {
 		cmd.Flags().BoolVar(&transformFlags.crop, "crop", false, "Also center-crop to 9:16 vertical")
@@ -129,7 +128,7 @@ func init() {
 	rotateCmd.MarkFlagRequired("by")
 	scaleCmd.Flags().Var(newScale(&transformFlags.scale), "by", "Resolution to scale to")
 	scaleCmd.MarkFlagRequired("by")
-	speedCmd.Flags().Var(newBoundedFloat(&transformFlags.speed, 0, speedMin, speedMax, speedBounds), "by", "Speed multiplier, e.g. 1.5")
+	speedCmd.Flags().Var(newBoundedFloat(&transformFlags.speed, 0, speedMin, speedMax), "by", "Speed multiplier, e.g. 1.5")
 	speedCmd.MarkFlagRequired("by")
 
 	addTransformFlags(rotateCmd, "rotate")

@@ -166,4 +166,5 @@ goff inspect video.mp4 --for-ai
 - **HLS layout**: each packaged video gets its own directory holding `index.m3u8` and the segments, so two packaged videos never share a segment name. fMP4 packaging adds an `init.mp4` next to them.
 - **Size targets**: `--size` holds back headroom below the number you give, so a 25MB budget targets 24.5MB and the muxed result stays under the limit.
 - **HDR tone-mapping**: HDR10 and HLG sources are tone-mapped to 8-bit SDR with the Hable curve during `compress`, which takes priority over `--height` for those inputs.
+- **Out-of-range numbers**: a numeric flag given a value past its range is pulled to the nearest end of that range rather than rejected. `--help` prints the accepted range as the flag's type, such as `--crf 1..63`.
 - **Failure detail**: a failed encode reports the FFmpeg error only under `--debug`, which keeps a wall of filter-graph text out of normal runs.

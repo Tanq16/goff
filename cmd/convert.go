@@ -36,6 +36,6 @@ var convertCmd = &cobra.Command{
 func init() {
 	convertCmd.Flags().Var(newEnum(&convertFlags.to, "mp3", "mp3", "aac", "m4a", "flac", "opus", "wav", "ogg"), "to", "Audio format")
 	convertCmd.Flags().Var(newBitrate(&convertFlags.bitrate), "bitrate", "Audio bitrate, e.g. 256k (format default when unset)")
-	convertCmd.Flags().Var(newBoundedInt(&convertFlags.rate, 0, 8000, 192000, "between 8000 and 192000"), "rate", "Sample rate in Hz, e.g. 48000 (source rate when unset)")
-	convertCmd.Flags().Var(newBoundedInt(&convertFlags.channels, 0, 1, 8, "between 1 and 8"), "channels", "Channel count, 2 downmixes to stereo (source layout when unset)")
+	convertCmd.Flags().Var(newBoundedInt(&convertFlags.rate, 0, 8000, 192000), "rate", "Sample rate in Hz, e.g. 48000 (source rate when unset)")
+	convertCmd.Flags().Var(newBoundedInt(&convertFlags.channels, 0, 1, 8), "channels", "Channel count, 2 downmixes to stereo (source layout when unset)")
 }

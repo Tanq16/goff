@@ -56,42 +56,37 @@ type boundedFloat struct {
 	target *float64
 	min    float64
 	max    float64
-	bounds string
 }
 
-func newBoundedFloat(target *float64, def, min, max float64, bounds string) *boundedFloat {
+func newBoundedFloat(target *float64, def, lo, hi float64) *boundedFloat {
 	*target = def
-	return &boundedFloat{target: target, min: min, max: max, bounds: bounds}
+	return &boundedFloat{target: target, min: lo, max: hi}
 }
 
-func (b *boundedFloat) String() string {
-	return strconv.FormatFloat(*b.target, 'g', -1, 64)
-}
+func formatFloat(f float64) string { return strconv.FormatFloat(f, 'g', -1, 64) }
+
+func (b *boundedFloat) String() string { return formatFloat(*b.target) }
 
 func (b *boundedFloat) Set(v string) error {
 	f, err := strconv.ParseFloat(v, 64)
-	if err != nil {
+	if err != nil || math.IsNaN(f) {
 		return fmt.Errorf("must be a number")
 	}
-	if f < b.min || f > b.max {
-		return fmt.Errorf("must be %s", b.bounds)
-	}
-	*b.target = f
+	*b.target = min(max(f, b.min), b.max)
 	return nil
 }
 
-func (b *boundedFloat) Type() string { return "float" }
+func (b *boundedFloat) Type() string { return formatFloat(b.min) + ".." + formatFloat(b.max) }
 
 type boundedInt struct {
 	target *int
 	min    int
 	max    int
-	bounds string
 }
 
-func newBoundedInt(target *int, def, min, max int, bounds string) *boundedInt {
+func newBoundedInt(target *int, def, lo, hi int) *boundedInt {
 	*target = def
-	return &boundedInt{target: target, min: min, max: max, bounds: bounds}
+	return &boundedInt{target: target, min: lo, max: hi}
 }
 
 func (b *boundedInt) String() string { return strconv.Itoa(*b.target) }
@@ -101,14 +96,11 @@ func (b *boundedInt) Set(v string) error {
 	if err != nil {
 		return fmt.Errorf("must be a whole number")
 	}
-	if n < b.min || n > b.max {
-		return fmt.Errorf("must be %s", b.bounds)
-	}
-	*b.target = n
+	*b.target = min(max(n, b.min), b.max)
 	return nil
 }
 
-func (b *boundedInt) Type() string { return "int" }
+func (b *boundedInt) Type() string { return strconv.Itoa(b.min) + ".." + strconv.Itoa(b.max) }
 
 var bitratePattern = regexp.MustCompile(`^[1-9][0-9]*k?$`)
 

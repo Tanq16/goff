@@ -71,8 +71,8 @@ var compressCmd = &cobra.Command{
 
 func init() {
 	compressCmd.Flags().VarP(newEnum(&compressFlags.codec, "hevc", "hevc", "av1", "h264"), "codec", "c", "Video codec")
-	compressCmd.Flags().Var(newBoundedInt(&compressFlags.crf, 0, 0, 63, "between 0 and 63"), "crf", "Quality factor, lower is better (codec default when unset)")
-	compressCmd.Flags().Var(newBoundedInt(&compressFlags.height, 1080, 144, 4320, "between 144 and 4320"), "height", "Maximum output height in pixels")
+	compressCmd.Flags().Var(newBoundedInt(&compressFlags.crf, 0, 1, 63), "crf", "Quality factor, lower is better (codec default when unset)")
+	compressCmd.Flags().Var(newBoundedInt(&compressFlags.height, 1080, 144, 4320), "height", "Maximum output height in pixels")
 	compressCmd.Flags().StringVar(&compressFlags.size, "size", "", "Target file size budget, e.g. 25MB (overrides --crf)")
 	compressCmd.MarkFlagsMutuallyExclusive("crf", "size")
 }

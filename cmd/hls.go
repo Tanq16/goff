@@ -54,6 +54,6 @@ packaged videos never share a segment name.`,
 
 func init() {
 	hlsCmd.Flags().Var(newEnum(&hlsFlags.to, "fmp4", "fmp4", "ts"), "to", "Segment type")
-	hlsCmd.Flags().Var(newBoundedInt(&hlsFlags.segment, 6, 1, 60, "between 1 and 60"), "segment", "Segment length in seconds")
-	hlsCmd.Flags().Var(newBoundedInt(&hlsFlags.crf, 21, 0, 51, "between 0 and 51"), "crf", "Quality factor, lower is better")
+	hlsCmd.Flags().Var(newBoundedInt(&hlsFlags.segment, 6, 1, 60), "segment", "Segment length in seconds")
+	hlsCmd.Flags().Var(newBoundedInt(&hlsFlags.crf, 21, 1, 51), "crf", "Quality factor, lower is better")
 }

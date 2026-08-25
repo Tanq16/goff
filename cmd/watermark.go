@@ -52,7 +52,7 @@ func init() {
 	watermarkCmd.Flags().StringVar(&watermarkFlags.logo, "logo", "", "Image file to overlay (required)")
 	watermarkCmd.MarkFlagRequired("logo")
 	watermarkCmd.Flags().Var(newEnum(&watermarkFlags.at, "top-right", "top-right", "top-left", "bottom-right", "bottom-left", "center"), "at", "Overlay position")
-	watermarkCmd.Flags().Var(newBoundedInt(&watermarkFlags.width, 15, 1, 100, "between 1 and 100"), "width", "Overlay width as a percent of video width")
-	watermarkCmd.Flags().Var(newBoundedInt(&watermarkFlags.margin, 2, 0, 49, "between 0 and 49"), "margin", "Edge margin as a percent of video size")
-	watermarkCmd.Flags().Var(newBoundedFloat(&watermarkFlags.opacity, 1.0, 0.01, 1.0, "between 0.01 and 1"), "opacity", "Overlay opacity")
+	watermarkCmd.Flags().Var(newBoundedInt(&watermarkFlags.width, 15, 1, 100), "width", "Overlay width as a percent of video width")
+	watermarkCmd.Flags().Var(newBoundedInt(&watermarkFlags.margin, 2, 0, 49), "margin", "Edge margin as a percent of video size")
+	watermarkCmd.Flags().Var(newBoundedFloat(&watermarkFlags.opacity, 1.0, 0.01, 1.0), "opacity", "Overlay opacity")
 }

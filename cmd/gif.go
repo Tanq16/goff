@@ -37,8 +37,8 @@ var gifCmd = &cobra.Command{
 
 func init() {
 	gifCmd.Flags().Var(newEnum(&gifFlags.to, "gif", "gif", "webp"), "to", "Output format")
-	gifCmd.Flags().Var(newBoundedInt(&gifFlags.width, 480, 16, 3840, "between 16 and 3840"), "width", "Output width in pixels, height follows the aspect ratio")
-	gifCmd.Flags().Var(newBoundedInt(&gifFlags.fps, 15, 1, 60, "between 1 and 60"), "fps", "Frames per second")
+	gifCmd.Flags().Var(newBoundedInt(&gifFlags.width, 480, 16, 3840), "width", "Output width in pixels, height follows the aspect ratio")
+	gifCmd.Flags().Var(newBoundedInt(&gifFlags.fps, 15, 1, 60), "fps", "Frames per second")
 	gifCmd.Flags().Var(newTimestamp(&gifFlags.start), "start", "Start position, e.g. 00:00:05")
 	gifCmd.Flags().Var(newTimestamp(&gifFlags.duration), "duration", "Length to capture from --start, e.g. 5")
 }
