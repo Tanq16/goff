@@ -89,6 +89,146 @@ func TestBuildVideoOptimizeLossless(t *testing.T) {
 	}
 }
 
+func argAfter(args []string, flag string) string {
+	i := slices.Index(args, flag)
+	if i < 0 || i+1 >= len(args) {
+		return ""
+	}
+	return args[i+1]
+}
+
+func TestBuildVideoOptimizeTargetSize(t *testing.T) {
+	probeOfDuration := func(sec string) *probe.ProbeResult {
+		return &probe.ProbeResult{
+			Format:  probe.FormatInfo{DurationStr: sec},
+			Streams: []probe.StreamInfo{{CodecType: "video", Width: 1920, Height: 1080}},
+		}
+	}
+
+	tests := []struct {
+		name        string
+		probe       *probe.ProbeResult
+		sizeMB      float64
+		wantBitrate string
+		wantMaxrate string
+		wantBufsize string
+		wantCRF     string
+	}{
+		{
+			name:        "budget solves to a video bitrate under the audio allowance",
+			probe:       probeOfDuration("8.0"),
+			sizeMB:      1.0,
+			wantBitrate: "896k",
+			wantMaxrate: "1344k",
+			wantBufsize: "1792k",
+		},
+		{
+			name:        "a budget too small for the audio track lands on the floor",
+			probe:       probeOfDuration("8.0"),
+			sizeMB:      0.1,
+			wantBitrate: "64k",
+			wantMaxrate: "96k",
+			wantBufsize: "128k",
+		},
+		{
+			name:    "an unknown duration cannot solve a bitrate and falls back to crf",
+			probe:   probeOfDuration("0"),
+			sizeMB:  1.0,
+			wantCRF: "30",
+		},
+		{
+			name:    "no probe at all falls back to crf",
+			probe:   nil,
+			sizeMB:  1.0,
+			wantCRF: "30",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := BuildVideoOptimize("input.mkv", tt.probe, VideoOptimizeOpts{
+				Codec:        "hevc",
+				TargetSizeMB: tt.sizeMB,
+			})
+			if err != nil {
+				t.Fatalf("unexpected err: %v", err)
+			}
+			if got := argAfter(res.Args, "-b:v"); got != tt.wantBitrate {
+				t.Errorf("got -b:v %q, want %q (args: %v)", got, tt.wantBitrate, res.Args)
+			}
+			if got := argAfter(res.Args, "-maxrate"); got != tt.wantMaxrate {
+				t.Errorf("got -maxrate %q, want %q (args: %v)", got, tt.wantMaxrate, res.Args)
+			}
+			if got := argAfter(res.Args, "-bufsize"); got != tt.wantBufsize {
+				t.Errorf("got -bufsize %q, want %q (args: %v)", got, tt.wantBufsize, res.Args)
+			}
+			if got := argAfter(res.Args, "-crf"); got != tt.wantCRF {
+				t.Errorf("got -crf %q, want %q (args: %v)", got, tt.wantCRF, res.Args)
+			}
+		})
+	}
+}
+
+func TestBuildVideoOptimizeToneMap(t *testing.T) {
+	videoStream := func(transfer string) *probe.ProbeResult {
+		return &probe.ProbeResult{
+			Format: probe.FormatInfo{DurationStr: "60.0"},
+			Streams: []probe.StreamInfo{{
+				CodecType:     "video",
+				Width:         3840,
+				Height:        2160,
+				ColorTransfer: transfer,
+			}},
+		}
+	}
+
+	tests := []struct {
+		name   string
+		probe  *probe.ProbeResult
+		want   []string
+		absent []string
+	}{
+		{
+			name:   "hdr tone-maps and ignores the height cap the filter hardcodes",
+			probe:  videoStream("smpte2084"),
+			want:   []string{"tonemap=hable", "format=yuv420p"},
+			absent: []string{"min(720,ih)"},
+		},
+		{
+			name:   "sdr scales to the height cap and never tone-maps",
+			probe:  videoStream(""),
+			want:   []string{"min(720,ih)"},
+			absent: []string{"tonemap"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := BuildVideoOptimize("input.mkv", tt.probe, VideoOptimizeOpts{
+				Codec:     "hevc",
+				MaxHeight: 720,
+			})
+			if err != nil {
+				t.Fatalf("unexpected err: %v", err)
+			}
+			vf := argAfter(res.Args, "-vf")
+			if vf == "" {
+				t.Fatalf("no -vf chain in args: %v", res.Args)
+			}
+			for _, want := range tt.want {
+				if !strings.Contains(vf, want) {
+					t.Errorf("vf chain %q missing %q", vf, want)
+				}
+			}
+			for _, gone := range tt.absent {
+				if strings.Contains(vf, gone) {
+					t.Errorf("vf chain %q should not contain %q", vf, gone)
+				}
+			}
+		})
+	}
+}
+
 func TestBuildVideoGIF(t *testing.T) {
 	res, err := BuildVideoGIF("input.mp4", nil, VideoGIFOpts{
 		Width:  320,
