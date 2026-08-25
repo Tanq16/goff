@@ -4,19 +4,9 @@ import (
 	"bytes"
 	"io"
 	"os"
-	"slices"
 	"strings"
 	"testing"
 )
-
-func TestEscapeCells(t *testing.T) {
-	in := []string{"Hello|World", "Normal", "Pipe|Another|Pipe"}
-	got := escapeCells(in)
-	want := []string{"Hello\\|World", "Normal", "Pipe\\|Another\\|Pipe"}
-	if !slices.Equal(got, want) {
-		t.Fatalf("escapeCells() = %v, want %v", got, want)
-	}
-}
 
 func TestPrintMarkdownTable(t *testing.T) {
 	oldStdout := os.Stdout

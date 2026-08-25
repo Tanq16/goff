@@ -37,11 +37,12 @@ To layer audio tracks so they play at the same time, use mix.`,
 		if err != nil {
 			utils.PrintFatal("failed to build concat arguments", err)
 		}
+		cleanup := func() {}
 		if listFile != "" {
-			defer os.Remove(listFile)
+			cleanup = func() { os.Remove(listFile) }
 		}
 
-		runComposed("concat", args[0], res, totalSec)
+		runComposed("concat", args[0], res, totalSec, cleanup)
 	},
 }
 

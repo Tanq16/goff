@@ -1,6 +1,7 @@
 package probe
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -52,7 +53,7 @@ type StreamInfo struct {
 
 func RunProbe(ctx context.Context, filePath string) (*ProbeResult, error) {
 	args := []string{
-		"-v", "quiet",
+		"-v", "error",
 		"-print_format", "json",
 		"-show_format",
 		"-show_streams",
@@ -60,13 +61,19 @@ func RunProbe(ctx context.Context, filePath string) (*ProbeResult, error) {
 	}
 
 	cmd := exec.CommandContext(ctx, "ffprobe", args...)
-	output, err := cmd.Output()
-	if err != nil {
+	var stdout bytes.Buffer
+	var stderr strings.Builder
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		if detail := strings.TrimSpace(stderr.String()); detail != "" {
+			return nil, fmt.Errorf("ffprobe failed on %q: %s (%w)", filePath, detail, err)
+		}
 		return nil, fmt.Errorf("ffprobe failed on %q: %w", filePath, err)
 	}
 
 	var result ProbeResult
-	if err := json.Unmarshal(output, &result); err != nil {
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
 		return nil, fmt.Errorf("failed to decode ffprobe json: %w", err)
 	}
 

@@ -62,7 +62,7 @@ keeps every track selectable instead of combining them.`,
 			utils.PrintFatal("failed to build mux arguments", err)
 		}
 
-		runComposed("mux", video, res, p.TotalDuration())
+		runComposed("mux", video, res, p.TotalDuration(), nil)
 	},
 }
 

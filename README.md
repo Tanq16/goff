@@ -26,6 +26,8 @@ It exists so you stop looking up filter syntax for the same dozen jobs. It is no
 
 ## Installation
 
+`ffmpeg` and `ffprobe` must be on your `PATH`, whichever path below you take.
+
 ### Pre-built Binary
 
 Download the compiled binary for your platform from [Releases](https://github.com/Tanq16/goff/releases):
@@ -47,8 +49,6 @@ git clone https://github.com/Tanq16/goff.git
 cd goff
 make build
 ```
-
-*Note: Ensure `ffmpeg` and `ffprobe` are installed on your system PATH.*
 
 ## Usage
 

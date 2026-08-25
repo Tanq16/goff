@@ -61,7 +61,7 @@ To join clips end to end instead of layering them, use concat.`,
 			utils.PrintFatal("failed to build mix arguments", err)
 		}
 
-		runComposed("mix", mixFlags.sources[0].Path, res, mixDuration(mixFlags.sources, mixFlags.fit))
+		runComposed("mix", mixFlags.sources[0].Path, res, mixDuration(mixFlags.sources, mixFlags.fit), nil)
 	},
 }
 

@@ -25,23 +25,20 @@ func RunFFmpeg(ctx context.Context, args []string, totalDurationSec float64, onP
 		return fmt.Errorf("failed to open stderr pipe: %w", err)
 	}
 
-	var stderrBuf bytes.Buffer
-	var wg sync.WaitGroup
-
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		_ = ScanProgress(stdoutPipe, totalDurationSec, onProgress)
-	}()
-
-	go func() {
-		defer wg.Done()
-		_, _ = io.Copy(&stderrBuf, stderrPipe)
-	}()
-
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start ffmpeg: %w", err)
 	}
+
+	var stderrBuf bytes.Buffer
+	var wg sync.WaitGroup
+
+	wg.Go(func() {
+		_ = ScanProgress(stdoutPipe, totalDurationSec, onProgress)
+	})
+
+	wg.Go(func() {
+		_, _ = io.Copy(&stderrBuf, stderrPipe)
+	})
 
 	wg.Wait()
 
