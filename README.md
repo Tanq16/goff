@@ -32,7 +32,7 @@ Download the compiled binary for your platform from [Releases](https://github.co
 
 ```bash
 # Linux / macOS (Apple Silicon & Intel)
-ARCH=$(uname -m); [ "$ARCH" = "x86_64" ] && ARCH=amd64; [ "$ARCH" = "aarch64" ] && [ "$ARCH" = "arm64" ] || ARCH=arm64
+ARCH=$(uname -m); case "$ARCH" in x86_64) ARCH=amd64 ;; aarch64|arm64) ARCH=arm64 ;; esac
 curl -sL https://github.com/Tanq16/goff/releases/latest/download/goff-$(uname -s | tr '[:upper:]' '[:lower:]')-$ARCH -o goff
 chmod +x goff
 sudo mv goff /usr/local/bin/
