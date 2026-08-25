@@ -19,9 +19,11 @@ var watermarkFlags struct {
 }
 
 var watermarkCmd = &cobra.Command{
-	Use:   "watermark <video>",
-	Short: "Overlay a logo or image onto a video",
-	Args:  cobra.ExactArgs(1),
+	Use:     "watermark <video>",
+	GroupID: "video",
+	Short:   "Overlay a logo or image onto a video",
+	Example: "  goff watermark clip.mp4 --logo logo.png --at bottom-right --width 12 --opacity 0.6",
+	Args:    cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		video := args[0]
 
@@ -50,9 +52,7 @@ func init() {
 	watermarkCmd.Flags().StringVar(&watermarkFlags.logo, "logo", "", "Image file to overlay (required)")
 	watermarkCmd.MarkFlagRequired("logo")
 	watermarkCmd.Flags().Var(newEnum(&watermarkFlags.at, "top-right", "top-right", "top-left", "bottom-right", "bottom-left", "center"), "at", "Overlay position")
-	watermarkCmd.Flags().IntVar(&watermarkFlags.width, "width", 15, "Overlay width as a percent of video width")
-	watermarkCmd.Flags().IntVar(&watermarkFlags.margin, "margin", 2, "Edge margin as a percent of video size")
-	watermarkCmd.Flags().Var(newBoundedFloat(&watermarkFlags.opacity, 1.0, 0, 1.0, "greater than 0 and at most 1"), "opacity", "Overlay opacity")
-
-	rootCmd.AddCommand(watermarkCmd)
+	watermarkCmd.Flags().Var(newBoundedInt(&watermarkFlags.width, 15, 1, 100, "between 1 and 100"), "width", "Overlay width as a percent of video width")
+	watermarkCmd.Flags().Var(newBoundedInt(&watermarkFlags.margin, 2, 0, 49, "between 0 and 49"), "margin", "Edge margin as a percent of video size")
+	watermarkCmd.Flags().Var(newBoundedFloat(&watermarkFlags.opacity, 1.0, 0.01, 1.0, "between 0.01 and 1"), "opacity", "Overlay opacity")
 }

@@ -225,8 +225,9 @@ func TestBoundedFloatSet(t *testing.T) {
 	}{
 		{"inside range", "0.5", false},
 		{"at inclusive max", "1", false},
-		{"just inside min", "0.0001", false},
-		{"at exclusive min", "0", true},
+		{"at inclusive min", "0.01", false},
+		{"just below min", "0.009", true},
+		{"zero", "0", true},
 		{"below min", "-1", true},
 		{"above max", "1.0001", true},
 		{"well above max", "5", true},
@@ -236,13 +237,82 @@ func TestBoundedFloatSet(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var target float64
-			f := newBoundedFloat(&target, 1.0, 0, 1.0, "greater than 0 and at most 1")
+			f := newBoundedFloat(&target, 1.0, 0.01, 1.0, "between 0.01 and 1")
 			err := f.Set(tt.in)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("Set(%q) err = %v, wantErr %v", tt.in, err, tt.wantErr)
 			}
 			if err != nil && target != 1.0 {
 				t.Errorf("Set(%q) failed but still changed the target to %v", tt.in, target)
+			}
+		})
+	}
+}
+
+func TestParseTimestamp(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      string
+		want    float64
+		wantErr bool
+	}{
+		{"bare seconds", "90", 90, false},
+		{"fractional seconds", "90.5", 90.5, false},
+		{"minutes and seconds", "1:30", 90, false},
+		{"hours minutes seconds", "00:01:30", 90, false},
+		{"fractional last component", "00:01:30.5", 90.5, false},
+		{"zero", "0", 0, false},
+		{"fractional minutes", "1.5:30", 0, true},
+		{"four components", "1:2:3:4", 0, true},
+		{"negative", "-5", 0, true},
+		{"empty component", "1::30", 0, true},
+		{"not a number", "banana", 0, true},
+		{"empty", "", 0, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseTimestamp(tt.in)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("parseTimestamp(%q) err = %v, wantErr %v", tt.in, err, tt.wantErr)
+			}
+			if err == nil && got != tt.want {
+				t.Errorf("parseTimestamp(%q) = %v, want %v", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseMediaInput(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      string
+		want    mediaInput
+		wantErr bool
+	}{
+		{"path only", "music.mp3", mediaInput{Path: "music.mp3", Volume: 1.0}, false},
+		{"offset in seconds", "music.mp3:at=5", mediaInput{Path: "music.mp3", DelayMS: 5000, Volume: 1.0}, false},
+		{"offset with colons", "music.mp3:at=00:01:30", mediaInput{Path: "music.mp3", DelayMS: 90000, Volume: 1.0}, false},
+		{"volume only", "music.mp3:vol=0.3", mediaInput{Path: "music.mp3", Volume: 0.3}, false},
+		{"both options", "music.mp3:at=00:00:05:vol=0.3", mediaInput{Path: "music.mp3", DelayMS: 5000, Volume: 0.3}, false},
+		{"options in either order", "music.mp3:vol=0.3:at=5", mediaInput{Path: "music.mp3", DelayMS: 5000, Volume: 0.3}, false},
+		{"colon in path without options", "odd:name.mp3", mediaInput{Path: "odd:name.mp3", Volume: 1.0}, false},
+		{"colon in path with options", "odd:name.mp3:at=5", mediaInput{Path: "odd:name.mp3", DelayMS: 5000, Volume: 1.0}, false},
+		{"fractional offset", "music.mp3:at=1.5", mediaInput{Path: "music.mp3", DelayMS: 1500, Volume: 1.0}, false},
+		{"malformed offset", "music.mp3:at=banana", mediaInput{}, true},
+		{"zero volume", "music.mp3:vol=0", mediaInput{}, true},
+		{"negative volume", "music.mp3:vol=-1", mediaInput{}, true},
+		{"volume above cap", "music.mp3:vol=11", mediaInput{}, true},
+		{"no path before options", ":at=5", mediaInput{}, true},
+		{"empty", "", mediaInput{}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseMediaInput(tt.in)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("parseMediaInput(%q) err = %v, wantErr %v", tt.in, err, tt.wantErr)
+			}
+			if err == nil && got != tt.want {
+				t.Errorf("parseMediaInput(%q) = %+v, want %+v", tt.in, got, tt.want)
 			}
 		})
 	}

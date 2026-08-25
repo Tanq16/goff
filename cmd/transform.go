@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"math"
-
 	"github.com/spf13/cobra"
 
 	"github.com/Tanq16/goff/internal/ops"
@@ -18,6 +16,12 @@ var transformFlags struct {
 }
 
 var rotations = []string{"90", "180", "270", "hflip", "vflip"}
+
+const (
+	speedMin    = 0.5
+	speedMax    = 100.0
+	speedBounds = "between 0.5 and 100"
+)
 
 func runTransform(verb string, args []string) {
 	opts := ops.VideoTransformOpts{
@@ -51,7 +55,7 @@ func addTransformFlags(cmd *cobra.Command, own string) {
 		cmd.Flags().Var(newScale(&transformFlags.scale), "scale", "Also scale")
 	}
 	if own != "speed" {
-		cmd.Flags().Var(newBoundedFloat(&transformFlags.speed, 0, 0, math.MaxFloat64, "greater than 0"), "speed", "Also change speed, e.g. 1.5 (audio pitch corrected)")
+		cmd.Flags().Var(newBoundedFloat(&transformFlags.speed, 0, speedMin, speedMax, speedBounds), "speed", "Also change speed, e.g. 1.5 (audio pitch corrected)")
 	}
 	if own != "crop" {
 		cmd.Flags().BoolVar(&transformFlags.crop, "crop", false, "Also center-crop to 9:16 vertical")
@@ -62,36 +66,46 @@ func addTransformFlags(cmd *cobra.Command, own string) {
 }
 
 var rotateCmd = &cobra.Command{
-	Use:   "rotate <files...>",
-	Short: "Rotate or flip video",
-	Args:  cobra.ArbitraryArgs,
+	Use:     "rotate <files...>",
+	GroupID: "video",
+	Short:   "Rotate or flip video",
+	Example: `  goff rotate clip.mp4 --by 90
+  goff rotate clip.mp4 --by 90 --scale 720p --mute`,
+	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		runTransform("rotate", args)
 	},
 }
 
 var scaleCmd = &cobra.Command{
-	Use:   "scale <files...>",
-	Short: "Resize video to a resolution tier or explicit dimensions",
-	Args:  cobra.ArbitraryArgs,
+	Use:     "scale <files...>",
+	GroupID: "video",
+	Short:   "Resize video to a resolution tier or explicit dimensions",
+	Example: `  goff scale clip.mp4 --by 720p
+  goff scale clip.mp4 --by 1280x720`,
+	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		runTransform("scale", args)
 	},
 }
 
 var speedCmd = &cobra.Command{
-	Use:   "speed <files...>",
-	Short: "Change playback speed with pitch-corrected audio",
-	Args:  cobra.ArbitraryArgs,
+	Use:     "speed <files...>",
+	GroupID: "video",
+	Short:   "Change playback speed with pitch-corrected audio",
+	Example: "  goff speed lecture.mp4 --by 1.5",
+	Args:    cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		runTransform("speed", args)
 	},
 }
 
 var cropCmd = &cobra.Command{
-	Use:   "crop <files...>",
-	Short: "Center-crop video to 9:16 vertical",
-	Args:  cobra.ArbitraryArgs,
+	Use:     "crop <files...>",
+	GroupID: "video",
+	Short:   "Center-crop video to 9:16 vertical for Shorts and Reels",
+	Example: "  goff crop landscape.mp4",
+	Args:    cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		transformFlags.crop = true
 		runTransform("crop", args)
@@ -99,9 +113,11 @@ var cropCmd = &cobra.Command{
 }
 
 var muteCmd = &cobra.Command{
-	Use:   "mute <files...>",
-	Short: "Drop every audio track from video",
-	Args:  cobra.ArbitraryArgs,
+	Use:     "mute <files...>",
+	GroupID: "video",
+	Short:   "Drop every audio track from video",
+	Example: "  goff mute clip.mp4",
+	Args:    cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		transformFlags.mute = true
 		runTransform("mute", args)
@@ -113,7 +129,7 @@ func init() {
 	rotateCmd.MarkFlagRequired("by")
 	scaleCmd.Flags().Var(newScale(&transformFlags.scale), "by", "Resolution to scale to")
 	scaleCmd.MarkFlagRequired("by")
-	speedCmd.Flags().Var(newBoundedFloat(&transformFlags.speed, 0, 0, math.MaxFloat64, "greater than 0"), "by", "Speed multiplier, e.g. 1.5")
+	speedCmd.Flags().Var(newBoundedFloat(&transformFlags.speed, 0, speedMin, speedMax, speedBounds), "by", "Speed multiplier, e.g. 1.5")
 	speedCmd.MarkFlagRequired("by")
 
 	addTransformFlags(rotateCmd, "rotate")
@@ -121,6 +137,4 @@ func init() {
 	addTransformFlags(speedCmd, "speed")
 	addTransformFlags(cropCmd, "crop")
 	addTransformFlags(muteCmd, "mute")
-
-	rootCmd.AddCommand(rotateCmd, scaleCmd, speedCmd, cropCmd, muteCmd)
 }

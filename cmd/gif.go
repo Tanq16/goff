@@ -16,9 +16,12 @@ var gifFlags struct {
 }
 
 var gifCmd = &cobra.Command{
-	Use:   "gif <files...>",
-	Short: "Render an animated GIF or WebP loop from video",
-	Args:  cobra.ArbitraryArgs,
+	Use:     "gif <files...>",
+	GroupID: "segments",
+	Short:   "Render an animated GIF or WebP loop from video",
+	Example: `  goff gif screencast.mp4 --width 640 --fps 20
+  goff gif screencast.mp4 --start 5 --duration 8 --to webp`,
+	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		runFiles("gif", args, func(input string, p *probe.ProbeResult) (*ops.OpResult, error) {
 			return ops.BuildVideoGIF(input, p, ops.VideoGIFOpts{
@@ -34,10 +37,8 @@ var gifCmd = &cobra.Command{
 
 func init() {
 	gifCmd.Flags().Var(newEnum(&gifFlags.to, "gif", "gif", "webp"), "to", "Output format")
-	gifCmd.Flags().IntVar(&gifFlags.width, "width", 480, "Output width in pixels, height follows the aspect ratio")
-	gifCmd.Flags().IntVar(&gifFlags.fps, "fps", 15, "Frames per second")
-	gifCmd.Flags().StringVar(&gifFlags.start, "start", "", "Start position, e.g. 00:00:05")
-	gifCmd.Flags().StringVar(&gifFlags.duration, "duration", "", "Length to capture from --start, e.g. 5")
-
-	rootCmd.AddCommand(gifCmd)
+	gifCmd.Flags().Var(newBoundedInt(&gifFlags.width, 480, 16, 3840, "between 16 and 3840"), "width", "Output width in pixels, height follows the aspect ratio")
+	gifCmd.Flags().Var(newBoundedInt(&gifFlags.fps, 15, 1, 60, "between 1 and 60"), "fps", "Frames per second")
+	gifCmd.Flags().Var(newTimestamp(&gifFlags.start), "start", "Start position, e.g. 00:00:05")
+	gifCmd.Flags().Var(newTimestamp(&gifFlags.duration), "duration", "Length to capture from --start, e.g. 5")
 }

@@ -12,9 +12,11 @@ import (
 )
 
 var inspectCmd = &cobra.Command{
-	Use:   "inspect <file>",
-	Short: "Inspect media streams, codecs, bitrates, and HDR parameters",
-	Args:  cobra.ExactArgs(1),
+	Use:     "inspect <file>",
+	GroupID: "info",
+	Short:   "Inspect media streams, codecs, bitrates, and HDR parameters",
+	Example: "  goff inspect movie.mkv",
+	Args:    cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		filePath := args[0]
 		p, err := probe.RunProbe(context.Background(), filePath)
@@ -88,8 +90,4 @@ var inspectCmd = &cobra.Command{
 
 		utils.PrintTable(headers, rows)
 	},
-}
-
-func init() {
-	rootCmd.AddCommand(inspectCmd)
 }

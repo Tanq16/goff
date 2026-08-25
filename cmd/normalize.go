@@ -15,9 +15,12 @@ var normalizeFlags struct {
 }
 
 var normalizeCmd = &cobra.Command{
-	Use:   "normalize <files...>",
-	Short: "Apply EBU R128 loudness normalization to audio or video",
-	Args:  cobra.ArbitraryArgs,
+	Use:     "normalize <files...>",
+	GroupID: "audio",
+	Short:   "Apply EBU R128 loudness normalization to audio or video",
+	Example: `  goff normalize podcast.wav --to mp3
+  goff normalize lecture.mp4 --lufs -14`,
+	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		runFiles("normalize", args, func(input string, p *probe.ProbeResult) (*ops.OpResult, error) {
 			return ops.BuildAudioLoudnorm(input, p, ops.AudioLoudnormOpts{
@@ -31,10 +34,8 @@ var normalizeCmd = &cobra.Command{
 }
 
 func init() {
-	normalizeCmd.Flags().Float64Var(&normalizeFlags.lufs, "lufs", -16.0, "Integrated loudness target in LUFS")
-	normalizeCmd.Flags().Float64Var(&normalizeFlags.peak, "peak", -1.5, "True peak ceiling in dBTP")
-	normalizeCmd.Flags().Float64Var(&normalizeFlags.lra, "range", 11.0, "Loudness range target")
+	normalizeCmd.Flags().Var(newBoundedFloat(&normalizeFlags.lufs, -16.0, -70.0, -5.0, "between -70 and -5"), "lufs", "Integrated loudness target in LUFS")
+	normalizeCmd.Flags().Var(newBoundedFloat(&normalizeFlags.peak, -1.5, -9.0, 0.0, "between -9 and 0"), "peak", "True peak ceiling in dBTP")
+	normalizeCmd.Flags().Var(newBoundedFloat(&normalizeFlags.lra, 11.0, 1.0, 50.0, "between 1 and 50"), "range", "Loudness range target")
 	normalizeCmd.Flags().Var(newEnum(&normalizeFlags.to, "", "mp3", "m4a", "aac", "flac", "wav", "ogg", "opus", "mp4", "mkv", "mov"), "to", "Output format (keeps the source container when unset)")
-
-	rootCmd.AddCommand(normalizeCmd)
 }

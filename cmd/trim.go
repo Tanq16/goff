@@ -16,9 +16,12 @@ var trimFlags struct {
 }
 
 var trimCmd = &cobra.Command{
-	Use:   "trim <files...>",
-	Short: "Cut a time range out of a video or audio file",
-	Args:  cobra.ArbitraryArgs,
+	Use:     "trim <files...>",
+	GroupID: "segments",
+	Short:   "Cut a time range out of a video or audio file",
+	Example: `  goff trim video.mp4 --start 00:01:30 --end 00:02:00
+  goff trim video.mp4 --start 90 --duration 30 --accurate`,
+	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		if trimFlags.start == "" && trimFlags.end == "" && trimFlags.duration == "" {
 			utils.PrintFatal("trim needs at least one of --start, --end, or --duration", nil)
@@ -36,11 +39,9 @@ var trimCmd = &cobra.Command{
 }
 
 func init() {
-	trimCmd.Flags().StringVar(&trimFlags.start, "start", "", "Start position, e.g. 00:01:30 or 90")
-	trimCmd.Flags().StringVar(&trimFlags.end, "end", "", "End position, e.g. 00:02:00")
-	trimCmd.Flags().StringVar(&trimFlags.duration, "duration", "", "Length to keep from --start, e.g. 30")
+	trimCmd.Flags().Var(newTimestamp(&trimFlags.start), "start", "Start position, e.g. 00:01:30 or 90")
+	trimCmd.Flags().Var(newTimestamp(&trimFlags.end), "end", "End position, e.g. 00:02:00")
+	trimCmd.Flags().Var(newTimestamp(&trimFlags.duration), "duration", "Length to keep from --start, e.g. 30")
 	trimCmd.Flags().BoolVar(&trimFlags.accurate, "accurate", false, "Re-encode for frame-accurate cuts instead of copying streams")
 	trimCmd.MarkFlagsMutuallyExclusive("end", "duration")
-
-	rootCmd.AddCommand(trimCmd)
 }

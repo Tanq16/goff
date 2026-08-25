@@ -12,9 +12,11 @@ var remuxFlags struct {
 }
 
 var remuxCmd = &cobra.Command{
-	Use:   "remux <files...>",
-	Short: "Switch container without re-encoding a single stream",
-	Args:  cobra.ArbitraryArgs,
+	Use:     "remux <files...>",
+	GroupID: "video",
+	Short:   "Switch container without re-encoding a single stream",
+	Example: "  goff remux capture.mkv --to mp4",
+	Args:    cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		runFiles("remux", args, func(input string, p *probe.ProbeResult) (*ops.OpResult, error) {
 			return ops.BuildVideoRemux(input, p, ops.VideoRemuxOpts{
@@ -26,6 +28,4 @@ var remuxCmd = &cobra.Command{
 
 func init() {
 	remuxCmd.Flags().Var(newEnum(&remuxFlags.to, "mp4", "mp4", "mkv", "mov"), "to", "Target container")
-
-	rootCmd.AddCommand(remuxCmd)
 }

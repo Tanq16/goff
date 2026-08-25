@@ -28,7 +28,23 @@ var rootCmd = &cobra.Command{
 	Use:     "goff [files...]",
 	Short:   "Standalone terminal media suite & FFmpeg CLI/TUI harness",
 	Version: AppVersion,
-	Args:    cobra.ArbitraryArgs,
+	Long: `Standalone terminal media suite & FFmpeg CLI/TUI harness.
+
+Run "goff" bare to browse the current directory in the TUI, or hand it files to
+jump straight to the action menu. Run "goff <command> <files...>" to do the same
+work headlessly.
+
+Every per-file command takes several inputs and writes one output per input,
+next to the source. concat joins clips end to end, while mix layers audio tracks
+so they play at the same time.`,
+	Args: func(cmd *cobra.Command, args []string) error {
+		for _, arg := range args {
+			if _, err := os.Stat(arg); err != nil {
+				return fmt.Errorf("unknown command or unreadable file %q", arg)
+			}
+		}
+		return nil
+	},
 	CompletionOptions: cobra.CompletionOptions{
 		HiddenDefaultCmd: true,
 	},
@@ -75,6 +91,7 @@ func setupLogs() {
 
 func init() {
 	rootCmd.SetHelpCommand(&cobra.Command{Hidden: true})
+	rootCmd.SetHelpCommandGroupID("info")
 
 	rootCmd.PersistentFlags().BoolVar(&debugFlag, "debug", false, "Enable debug logging")
 	rootCmd.PersistentFlags().BoolVar(&forAIFlag, "for-ai", false, "AI-friendly output (plain text, piped input)")
@@ -85,4 +102,20 @@ func init() {
 	rootCmd.PersistentFlags().IntVarP(&rootFlags.jobs, "jobs", "j", 2, "Concurrent encodes when several inputs are given")
 
 	cobra.OnInitialize(setupLogs)
+
+	rootCmd.AddGroup(
+		&cobra.Group{ID: "video", Title: "Video:"},
+		&cobra.Group{ID: "audio", Title: "Audio:"},
+		&cobra.Group{ID: "segments", Title: "Segments:"},
+		&cobra.Group{ID: "combine", Title: "Combining:"},
+		&cobra.Group{ID: "info", Title: "Info:"},
+	)
+
+	rootCmd.AddCommand(
+		compressCmd, remuxCmd, hlsCmd, rotateCmd, scaleCmd, speedCmd, cropCmd, muteCmd, watermarkCmd,
+		extractCmd, convertCmd, normalizeCmd, mixCmd,
+		trimCmd, gifCmd,
+		concatCmd, muxCmd, subsCmd,
+		inspectCmd,
+	)
 }

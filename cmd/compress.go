@@ -38,9 +38,13 @@ func parseSizeBudget(s string) (float64, error) {
 }
 
 var compressCmd = &cobra.Command{
-	Use:   "compress <files...>",
-	Short: "Re-encode video smaller, with optional codec, quality, and size targets",
-	Args:  cobra.ArbitraryArgs,
+	Use:     "compress <files...>",
+	GroupID: "video",
+	Short:   "Re-encode video smaller, with optional codec, quality, and size targets",
+	Example: `  goff compress movie.mkv
+  goff compress movie.mkv --codec av1 --crf 28
+  goff compress clip.mp4 --size 25MB`,
+	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		var targetMB float64
 		suffix := ""
@@ -66,11 +70,9 @@ var compressCmd = &cobra.Command{
 }
 
 func init() {
-	compressCmd.Flags().StringVarP(&compressFlags.codec, "codec", "c", "hevc", "Video codec: hevc, av1, h264")
-	compressCmd.Flags().IntVar(&compressFlags.crf, "crf", 0, "Quality factor, lower is better (codec default when unset)")
-	compressCmd.Flags().IntVar(&compressFlags.height, "height", 1080, "Maximum output height in pixels")
+	compressCmd.Flags().VarP(newEnum(&compressFlags.codec, "hevc", "hevc", "av1", "h264"), "codec", "c", "Video codec")
+	compressCmd.Flags().Var(newBoundedInt(&compressFlags.crf, 0, 0, 63, "between 0 and 63"), "crf", "Quality factor, lower is better (codec default when unset)")
+	compressCmd.Flags().Var(newBoundedInt(&compressFlags.height, 1080, 144, 4320, "between 144 and 4320"), "height", "Maximum output height in pixels")
 	compressCmd.Flags().StringVar(&compressFlags.size, "size", "", "Target file size budget, e.g. 25MB (overrides --crf)")
 	compressCmd.MarkFlagsMutuallyExclusive("crf", "size")
-
-	rootCmd.AddCommand(compressCmd)
 }

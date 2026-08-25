@@ -40,10 +40,7 @@ func validScaleTarget(s string) bool {
 	return dimensionsPattern.MatchString(strings.ToLower(s))
 }
 
-func requireInputs(verb string, args []string) {
-	if len(args) == 0 {
-		utils.PrintFatal(fmt.Sprintf("%s needs at least one input file", verb), nil)
-	}
+func requireInputs(args []string) {
 	if rootFlags.output != "" && len(args) > 1 {
 		utils.PrintFatal("--output names a single destination; drop it to write one output per input", nil)
 	}
@@ -81,6 +78,37 @@ func claimOutput(input, suffix, targetExt string) (string, error) {
 	return "", fmt.Errorf("unable to find a free output name for %q", input)
 }
 
+func claimOutputDir(input, suffix string) (string, error) {
+	if rootFlags.output != "" {
+		return rootFlags.output, nil
+	}
+
+	dir := filepath.Dir(input)
+	base := strings.TrimSuffix(filepath.Base(input), filepath.Ext(input))
+
+	claimed.Lock()
+	defer claimed.Unlock()
+	if claimed.paths == nil {
+		claimed.paths = make(map[string]bool)
+	}
+	for attempt := range 1000 {
+		name := fmt.Sprintf("%s.%s", base, suffix)
+		if attempt > 0 {
+			name = fmt.Sprintf("%s.%s.%d", base, suffix, attempt)
+		}
+		candidate := filepath.Join(dir, name)
+		if claimed.paths[candidate] {
+			continue
+		}
+		if _, err := os.Stat(candidate); err == nil && !rootFlags.overwrite {
+			continue
+		}
+		claimed.paths[candidate] = true
+		return candidate, nil
+	}
+	return "", fmt.Errorf("unable to find a free output directory for %q", input)
+}
+
 func prepare(ctx context.Context, input string, build buildFunc) (*ops.OpResult, *probe.ProbeResult, string, error) {
 	p, err := probe.RunProbe(ctx, input)
 	if err != nil {
@@ -89,6 +117,9 @@ func prepare(ctx context.Context, input string, build buildFunc) (*ops.OpResult,
 	res, err := build(input, p)
 	if err != nil {
 		return nil, nil, "", err
+	}
+	if res.OutputPath != "" {
+		return res, p, res.OutputPath, nil
 	}
 	outPath, err := claimOutput(input, res.Suffix, res.TargetExt)
 	if err != nil {
@@ -149,7 +180,7 @@ func fileSize(path string) int64 {
 }
 
 func runFiles(verb string, files []string, build buildFunc) {
-	requireInputs(verb, files)
+	requireInputs(files)
 	if len(files) == 1 {
 		runSingle(verb, files[0], build)
 		return
@@ -263,6 +294,10 @@ func runMany(verb string, files []string, build buildFunc) {
 	}
 
 	printSummary(results)
+
+	if len(failed) > 0 {
+		os.Exit(1)
+	}
 }
 
 func printSummary(results []fileResult) {
