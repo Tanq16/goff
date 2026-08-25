@@ -1,16 +1,13 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"time"
 
-	tea "charm.land/bubbletea/v2"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
-	"github.com/Tanq16/goff/internal/tui"
 	"github.com/Tanq16/goff/utils"
 )
 
@@ -25,47 +22,23 @@ var rootFlags struct {
 }
 
 var rootCmd = &cobra.Command{
-	Use:     "goff [files...]",
-	Short:   "Standalone terminal media suite & FFmpeg CLI/TUI harness",
+	Use:     "goff",
+	Short:   "Standalone terminal media suite & FFmpeg CLI harness",
 	Version: AppVersion,
-	Long: `Standalone terminal media suite & FFmpeg CLI/TUI harness.
+	Long: `Standalone terminal media suite & FFmpeg CLI harness.
 
-Run "goff" bare to browse the current directory in the TUI, or hand it files to
-jump straight to the action menu. Run "goff <command> <files...>" to do the same
-work headlessly.
+Every per-file command takes one or more inputs and writes one output per input,
+next to the source, so nothing is overwritten without -y.
 
-Every per-file command takes several inputs and writes one output per input,
-next to the source. concat joins clips end to end, while mix layers audio tracks
-so they play at the same time.`,
-	Args: func(cmd *cobra.Command, args []string) error {
-		for _, arg := range args {
-			if _, err := os.Stat(arg); err != nil {
-				return fmt.Errorf("unknown command or unreadable file %q", arg)
-			}
-		}
-		return nil
-	},
+concat joins clips end to end, while mix layers audio tracks so they play at the
+same time.`,
 	CompletionOptions: cobra.CompletionOptions{
 		HiddenDefaultCmd: true,
-	},
-	Run: func(cmd *cobra.Command, args []string) {
-		if utils.GlobalForAIFlag {
-			utils.PrintFatal("--for-ai needs an explicit command, e.g. goff compress <file> --for-ai", nil)
-		}
-
-		app, err := tui.NewAppModel(args, rootFlags.overwrite)
-		if err != nil {
-			utils.PrintFatal("failed to initialize media suite", err)
-		}
-		if _, err := tea.NewProgram(app).Run(); err != nil {
-			utils.PrintFatal("error running media suite", err)
-		}
 	},
 }
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
