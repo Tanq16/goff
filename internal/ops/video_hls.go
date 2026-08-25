@@ -1,6 +1,7 @@
 package ops
 
 import (
+	"path/filepath"
 	"strconv"
 
 	"github.com/Tanq16/goff/internal/probe"
@@ -20,6 +21,7 @@ type VideoHLSOpts struct {
 	CRF             int
 	GOPSize         int
 	CustomSuffix    string
+	OutputDir       string
 }
 
 func BuildVideoHLS(inputPath string, p *probe.ProbeResult, opts VideoHLSOpts) (*OpResult, error) {
@@ -74,7 +76,9 @@ func BuildVideoHLS(inputPath string, p *probe.ProbeResult, opts VideoHLSOpts) (*
 		"-hls_flags", "independent_segments",
 	}
 
+	segmentExt := "ts"
 	if fmtType == HLSFormatFMP4 {
+		segmentExt = "m4s"
 		args = append(args,
 			"-hls_segment_type", "fmp4",
 			"-hls_fmp4_init_filename", "init.mp4",
@@ -85,9 +89,16 @@ func BuildVideoHLS(inputPath string, p *probe.ProbeResult, opts VideoHLSOpts) (*
 		)
 	}
 
-	return &OpResult{
+	res := &OpResult{
 		Args:      args,
 		Suffix:    suffix,
 		TargetExt: "m3u8",
-	}, nil
+	}
+
+	if opts.OutputDir != "" {
+		res.Args = append(res.Args, "-hls_segment_filename", filepath.Join(opts.OutputDir, "segment%04d."+segmentExt))
+		res.OutputPath = filepath.Join(opts.OutputDir, "index.m3u8")
+	}
+
+	return res, nil
 }
