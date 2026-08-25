@@ -163,7 +163,7 @@ goff inspect video.mp4 --for-ai
 - **Composed transforms**: combining transform flags produces one encode named after the verb you typed, while a single transform keeps its descriptive name, such as `clip.rot90.mp4`.
 - **Input offsets and levels**: `mix` and `mux --audio` accept `<file>:at=<time>` to delay a track and `:vol=<factor>` to change its level, both optional and in either order. A track with neither starts at 0 at its own level.
 - **Audio modes**: `mux --audio-mode` decides what happens to the audio a video already has. `mix` layers it with the new tracks into one, `replace` drops it, and `separate` keeps every track selectable.
-- **HLS layout**: each packaged video gets its own directory holding `index.m3u8`, `init.mp4`, and the segments, so two packaged videos never share a segment name.
+- **HLS layout**: each packaged video gets its own directory holding `index.m3u8` and the segments, so two packaged videos never share a segment name. fMP4 packaging adds an `init.mp4` next to them.
 - **Size targets**: `--size` holds back headroom below the number you give, so a 25MB budget targets 24.5MB and the muxed result stays under the limit.
 - **HDR tone-mapping**: HDR10 and HLG sources are tone-mapped to 8-bit SDR with the Hable curve during `compress`, which takes priority over `--height` for those inputs.
 - **Failure detail**: a failed encode reports the FFmpeg error only under `--debug`, which keeps a wall of filter-graph text out of normal runs.
