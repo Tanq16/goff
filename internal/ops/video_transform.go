@@ -76,16 +76,13 @@ func BuildVideoTransform(inputPath string, p *probe.ProbeResult, opts VideoTrans
 		vfFilters = append(vfFilters, scaleFilter+",scale=trunc(iw/2)*2:trunc(ih/2)*2")
 	}
 
-	hasComplexSpeed := false
-	var filterComplex string
+	retimeAudio := false
 	if opts.Speed > 0 && opts.Speed != 1.0 {
-		ptsFactor := 1.0 / opts.Speed
 		suffix = fmt.Sprintf("%.2fx", opts.Speed)
+		vfFilters = append(vfFilters, fmt.Sprintf("setpts=%f*PTS", 1.0/opts.Speed))
 		if !opts.StripAudio && p != nil && len(p.AudioStreams()) > 0 {
-			hasComplexSpeed = true
-			filterComplex = fmt.Sprintf("[0:v]setpts=%f*PTS[v];[0:a]atempo=%f[a]", ptsFactor, opts.Speed)
-		} else {
-			vfFilters = append(vfFilters, fmt.Sprintf("setpts=%f*PTS", ptsFactor))
+			retimeAudio = true
+			afFilters = append(afFilters, fmt.Sprintf("atempo=%f", opts.Speed))
 		}
 	}
 
@@ -106,8 +103,9 @@ func BuildVideoTransform(inputPath string, p *probe.ProbeResult, opts VideoTrans
 	var args []string
 	args = append(args, "-i", inputPath)
 
-	if hasComplexSpeed {
-		args = append(args, "-filter_complex", filterComplex, "-map", "[v]", "-map", "[a]")
+	if retimeAudio {
+		args = append(args, "-filter_complex", fmt.Sprintf("[0:v]%s[v];[0:a]%s[a]",
+			strings.Join(vfFilters, ","), strings.Join(afFilters, ",")), "-map", "[v]", "-map", "[a]")
 	} else {
 		if len(vfFilters) > 0 {
 			args = append(args, "-vf", strings.Join(vfFilters, ","))
@@ -122,7 +120,7 @@ func BuildVideoTransform(inputPath string, p *probe.ProbeResult, opts VideoTrans
 	if opts.StripAudio {
 		args = append(args, "-an")
 		suffix = "muted"
-	} else if !hasComplexSpeed {
+	} else {
 		args = append(args, "-c:a", "aac", "-b:a", "192k")
 	}
 

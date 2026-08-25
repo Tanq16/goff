@@ -1,108 +1,93 @@
 package ops
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 )
 
+const (
+	MuxModeMix      = "mix"
+	MuxModeReplace  = "replace"
+	MuxModeSeparate = "separate"
+)
+
 type MultiMuxAudioOpts struct {
-	VideoInput      string
-	AudioInput      string
-	ReplaceOriginal bool
-	AudioBitrate    string
+	VideoInput    string
+	Sources       []AudioSource
+	Mode          string
+	Fit           string
+	AudioBitrate  string
+	VideoHasAudio bool
+}
+
+func videoContainerFor(path string) string {
+	switch strings.ToLower(strings.TrimPrefix(filepath.Ext(path), ".")) {
+	case "mkv":
+		return "mkv"
+	case "mov":
+		return "mov"
+	}
+	return "mp4"
 }
 
 func BuildMultiMuxAudio(opts MultiMuxAudioOpts) (*OpResult, error) {
+	if opts.VideoInput == "" {
+		return nil, fmt.Errorf("muxing audio requires a video input")
+	}
+	if len(opts.Sources) == 0 {
+		return nil, fmt.Errorf("muxing audio requires at least one audio input")
+	}
+
 	bitrate := opts.AudioBitrate
 	if bitrate == "" {
 		bitrate = "192k"
 	}
 
-	args := []string{
-		"-i", opts.VideoInput,
-		"-i", opts.AudioInput,
+	args := []string{"-i", opts.VideoInput}
+	for _, s := range opts.Sources {
+		args = append(args, "-i", s.Path)
 	}
 
-	if opts.ReplaceOriginal {
-		args = append(args,
-			"-map", "0:v:0",
-			"-map", "1:a:0",
-			"-c:v", "copy",
-			"-c:a", "aac",
-			"-b:a", bitrate,
-			"-movflags", "+faststart",
-		)
+	if opts.Mode == MuxModeSeparate {
+		args = append(args, "-map", "0:v:0")
+		if opts.VideoHasAudio {
+			args = append(args, "-map", "0:a")
+		}
+		for i := range opts.Sources {
+			args = append(args, "-map", fmt.Sprintf("%d:a:0", i+1))
+		}
+		args = append(args, "-c:v", "copy", "-c:a", "aac", "-b:a", bitrate)
 	} else {
+		labels := make([]string, 0, len(opts.Sources)+1)
+		sources := make([]AudioSource, 0, len(opts.Sources)+1)
+		if opts.Mode != MuxModeReplace && opts.VideoHasAudio {
+			labels = append(labels, "[0:a]")
+			sources = append(sources, AudioSource{Volume: 1.0})
+		}
+		for i, s := range opts.Sources {
+			labels = append(labels, fmt.Sprintf("[%d:a]", i+1))
+			sources = append(sources, s)
+		}
 		args = append(args,
-			"-map", "0:v:0",
-			"-map", "0:a?",
-			"-map", "1:a:0",
-			"-c:v", "copy",
-			"-c:a", "aac",
-			"-b:a", bitrate,
-			"-movflags", "+faststart",
+			"-filter_complex", mixFilter(labels, sources, opts.Fit, "[aout]"),
+			"-map", "0:v:0", "-map", "[aout]",
+			"-c:v", "copy", "-c:a", "aac", "-b:a", bitrate,
 		)
+	}
+
+	if opts.Fit != "longest" {
+		args = append(args, "-shortest")
+	}
+
+	targetExt := videoContainerFor(opts.VideoInput)
+	if targetExt == "mp4" || targetExt == "mov" {
+		args = append(args, "-movflags", "+faststart")
 	}
 
 	return &OpResult{
 		Args:      args,
 		Suffix:    "muxed",
-		TargetExt: "mp4",
-	}, nil
-}
-
-type MultiMuxSubsOpts struct {
-	VideoInput string
-	SubsInput  string
-	Hardburn   bool
-}
-
-func BuildMultiMuxSubs(opts MultiMuxSubsOpts) (*OpResult, error) {
-	if opts.Hardburn {
-		absSubs, err := filepath.Abs(opts.SubsInput)
-		if err != nil {
-			absSubs = opts.SubsInput
-		}
-		escaped := strings.ReplaceAll(absSubs, ":", "\\:")
-		escaped = strings.ReplaceAll(escaped, "'", "'\\''")
-
-		args := []string{
-			"-i", opts.VideoInput,
-			"-vf", "subtitles='" + escaped + "'",
-			"-c:v", "libx264",
-			"-crf", "20",
-			"-preset", "medium",
-			"-c:a", "copy",
-			"-movflags", "+faststart",
-		}
-		return &OpResult{
-			Args:      args,
-			Suffix:    "hardsub",
-			TargetExt: "mp4",
-		}, nil
-	}
-
-	ext := strings.ToLower(filepath.Ext(opts.VideoInput))
-	subExt := strings.ToLower(filepath.Ext(opts.SubsInput))
-
-	args := []string{
-		"-i", opts.VideoInput,
-		"-i", opts.SubsInput,
-		"-map", "0",
-		"-map", "1",
-		"-c", "copy",
-	}
-
-	targetExt := "mp4"
-	if ext == ".mkv" {
-		targetExt = "mkv"
-	} else if subExt == ".srt" || subExt == ".vtt" {
-		args = append(args, "-c:s", "mov_text")
-	}
-
-	return &OpResult{
-		Args:      args,
-		Suffix:    "subtitled",
 		TargetExt: targetExt,
 	}, nil
 }

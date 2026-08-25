@@ -2,7 +2,6 @@ package probe
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -21,16 +20,6 @@ func (p *ProbeResult) AudioStreams() []StreamInfo {
 	var list []StreamInfo
 	for _, s := range p.Streams {
 		if strings.EqualFold(s.CodecType, "audio") {
-			list = append(list, s)
-		}
-	}
-	return list
-}
-
-func (p *ProbeResult) SubtitleStreams() []StreamInfo {
-	var list []StreamInfo
-	for _, s := range p.Streams {
-		if strings.EqualFold(s.CodecType, "subtitle") {
 			list = append(list, s)
 		}
 	}
@@ -67,10 +56,6 @@ func (p *ProbeResult) IsVideo() bool {
 	return len(p.VideoStreams()) > 0
 }
 
-func (p *ProbeResult) IsAudioOnly() bool {
-	return len(p.VideoStreams()) == 0 && len(p.AudioStreams()) > 0
-}
-
 func (p *ProbeResult) TotalDuration() float64 {
 	if d := p.Format.Duration(); d > 0 {
 		return d
@@ -95,32 +80,6 @@ func (s *StreamInfo) DurationSeconds() float64 {
 	var sec float64
 	fmt.Sscanf(s.Duration, "%f", &sec)
 	return sec
-}
-
-func (p *ProbeResult) Resolution() string {
-	v := p.PrimaryVideoStream()
-	if v == nil || v.Width <= 0 || v.Height <= 0 {
-		return "N/A"
-	}
-	return fmt.Sprintf("%dx%d", v.Width, v.Height)
-}
-
-func (p *ProbeResult) FPS() float64 {
-	v := p.PrimaryVideoStream()
-	if v == nil {
-		return 0
-	}
-	fps := ParseFPS(v.AvgFrameRate)
-	if fps == 0 {
-		fps = ParseFPS(v.RFrameRate)
-	}
-	return fps
-}
-
-func (p *ProbeResult) BaseFileName() string {
-	base := filepath.Base(p.Format.Filename)
-	ext := filepath.Ext(base)
-	return strings.TrimSuffix(base, ext)
 }
 
 func (p *ProbeResult) HumanSize() string {

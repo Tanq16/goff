@@ -83,11 +83,6 @@ func (f *FormatInfo) Size() int64 {
 	return s
 }
 
-func (f *FormatInfo) BitRate() int64 {
-	b, _ := strconv.ParseInt(f.BitRateStr, 10, 64)
-	return b
-}
-
 func ParseFPS(fpsStr string) float64 {
 	if fpsStr == "" || fpsStr == "0/0" {
 		return 0
