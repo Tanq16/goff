@@ -13,13 +13,15 @@ import (
 )
 
 var compressFlags struct {
-	codec    string
-	crf      int
-	height   int
-	size     string
-	lossless bool
-	compat   bool
-	subs     string
+	codec        string
+	crf          int
+	height       int
+	size         string
+	lossless     bool
+	preset       string
+	audioBitrate string
+	compat       bool
+	subs         string
 }
 
 func parseSizeBudget(s string) (float64, error) {
@@ -70,6 +72,8 @@ var compressCmd = &cobra.Command{
 				MaxHeight:    compressFlags.height,
 				TargetSizeMB: targetMB,
 				CustomSuffix: suffix,
+				Preset:       compressFlags.preset,
+				AudioBitrate: compressFlags.audioBitrate,
 				Compat:       compressFlags.compat,
 				Subs:         compressFlags.subs,
 			})
@@ -83,6 +87,8 @@ func init() {
 	compressCmd.Flags().Var(newBoundedInt(&compressFlags.height, 1080, 144, 4320), "height", "Maximum output height in pixels")
 	compressCmd.Flags().StringVar(&compressFlags.size, "size", "", "Target file size budget, e.g. 25MB (overrides --crf)")
 	compressCmd.Flags().BoolVar(&compressFlags.lossless, "lossless", false, "Re-encode with no video quality loss, keeping the source resolution")
+	compressCmd.Flags().StringVar(&compressFlags.preset, "preset", "", "Encoder speed preset, e.g. slow, or 6 for av1 (codec default when unset)")
+	compressCmd.Flags().Var(newBitrate(&compressFlags.audioBitrate), "audio-bitrate", "Audio bitrate, e.g. 192k (128k when unset)")
 	compressCmd.Flags().BoolVar(&compressFlags.compat, "compat", false, "Normalize for wide playback: first video and audio track, 8-bit, constant frame rate, 48kHz stereo")
 	compressCmd.Flags().Var(newEnum(&compressFlags.subs, "auto", "auto", "all", "none"), "subs", "Subtitle handling")
 	compressCmd.MarkFlagsMutuallyExclusive("crf", "size", "lossless")
