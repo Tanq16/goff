@@ -100,6 +100,14 @@ func (p *ProbeResult) HumanDuration() string {
 	return FormatDuration(p.TotalDuration())
 }
 
+func (p *ProbeResult) HumanBitRate() string {
+	bps := p.Format.BitRate()
+	if bps <= 0 {
+		return "-"
+	}
+	return fmt.Sprintf("%d kbps", bps/1000)
+}
+
 func FormatBytes(b int64) string {
 	const unit = 1024
 	if b < unit {
