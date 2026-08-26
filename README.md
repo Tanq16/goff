@@ -16,7 +16,7 @@ It exists so you stop looking up filter syntax for the same dozen jobs. It is no
 
 | Category | Commands | Description |
 |----------|----------|-------------|
-| **Compression** | `compress` | H.265 / AV1 / H.264 re-encoding, height caps, target file size, lossless mode, automatic HDR tone-mapping |
+| **Compression** | `compress` | H.265 / AV1 / H.264 re-encoding, height caps, target file size, lossless mode, automatic HDR tone-mapping, playback-compatibility normalization |
 | **Containers** | `remux`, `hls` | Lossless container switching, VoD HLS packaging as fMP4 or MPEG-TS |
 | **Audio** | `extract`, `convert`, `normalize`, `mix` | Audio extraction from video, format transcoding, EBU R128 loudness normalization, layering tracks into one |
 | **Transforms** | `rotate`, `scale`, `speed`, `crop`, `mute` | Rotation and flips, resolution tiers, pitch-corrected speed, 9:16 vertical crop, audio removal |
@@ -78,12 +78,16 @@ goff compress input.mkv --codec av1 --crf 28
 goff compress input.mp4 --size 25MB           # bitrate solved to land under 25MB
 goff compress input.mkv --height 720
 goff compress master.mov --lossless           # no video quality loss, source resolution kept
+goff compress input.mkv --compat              # first tracks, 8-bit, CFR, 48kHz stereo
+goff compress input.mkv --subs all            # carry every subtitle track into the MP4
+goff compress input.mkv --preset slow --audio-bitrate 192k
 ```
 
 ### Containers and streaming
 
 ```bash
 goff remux input.mkv --to mp4     # no re-encoding
+goff remux capture.mkv --to mp4 --fix-timestamps
 goff hls input.mp4 --to fmp4      # writes input.hls-fmp4/index.m3u8 plus segments
 goff hls input.mp4 --to ts --segment 4
 ```
@@ -168,5 +172,8 @@ goff inspect video.mp4 --for-ai
 - **Size targets**: `--size` holds back headroom below the number you give, so a 25MB budget targets 24.5MB and the muxed result stays under the limit.
 - **HDR tone-mapping**: HDR10 and HLG sources are tone-mapped to 8-bit SDR with the Hable curve during `compress`, which takes priority over `--height` for those inputs.
 - **Lossless compression**: `compress --lossless` keeps the source resolution and skips tone-mapping, since both are lossy, and it re-encodes audio to AAC like every other `compress` run. It cannot be combined with `--crf`, `--size`, or `--height`.
+- **Playback compatibility**: `compress --compat` normalizes a run for players that reject anything unusual. It takes the first video and audio track instead of letting FFmpeg choose, forces 8-bit color and a constant frame rate, and downmixes audio to 48kHz stereo. It cannot be combined with `--lossless`.
+- **Subtitles**: `compress --subs all` maps every subtitle track and converts it to `mov_text`, which covers text subtitles and fails on image ones such as PGS. `none` drops them, and the default `auto` leaves the choice to FFmpeg.
+- **Timestamp shifting**: `remux --fix-timestamps` moves a negative start time to zero, which matters for captures whose audio and video begin at different points.
 - **Out-of-range numbers**: a numeric flag given a value past its range is pulled to the nearest end of that range rather than rejected. `--help` prints the accepted range as the flag's type, such as `--crf 1..63`. H.265 caps at 51, so a higher `--crf` lands there when `--codec hevc` is in play.
 - **Failure detail**: a failed encode reports the FFmpeg error only under `--debug`, which keeps a wall of filter-graph text out of normal runs.
