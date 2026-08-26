@@ -22,7 +22,7 @@ It exists so you stop looking up filter syntax for the same dozen jobs. It is no
 | **Transforms** | `rotate`, `scale`, `speed`, `crop`, `mute` | Rotation and flips, resolution tiers, pitch-corrected speed, 9:16 vertical crop, audio removal |
 | **Segments** | `trim`, `gif` | Time-range cuts, 2-pass palettegen GIF and animated WebP |
 | **Multi-file** | `concat`, `mux`, `subs`, `watermark` | Clip joining, external audio muxing, subtitle embedding, logo overlays |
-| **Inspection** | `inspect` | Stream table with codecs, resolutions, bitrates, and HDR transfer characteristics |
+| **Inspection** | `inspect` | Stream table with codecs, resolutions, per-stream and container bitrates, and HDR transfer characteristics |
 
 ## Installation
 
@@ -175,5 +175,6 @@ goff inspect video.mp4 --for-ai
 - **Playback compatibility**: `compress --compat` normalizes a run for players that reject anything unusual. It takes the first video and audio track instead of letting FFmpeg choose, forces 8-bit color and a constant frame rate, and downmixes audio to 48kHz stereo. It cannot be combined with `--lossless`.
 - **Subtitles**: `compress --subs all` maps every subtitle track and converts it to `mov_text`, which covers text subtitles and fails on image ones such as PGS. `none` drops them, and the default `auto` leaves the choice to FFmpeg.
 - **Timestamp shifting**: `remux --fix-timestamps` moves a negative start time to zero, which matters for captures whose audio and video begin at different points.
+- **Container bitrate**: `inspect` prints the container bitrate on its summary line, deriving it from size over duration when FFprobe reports none. A derived figure can differ slightly from a reported one, and a file FFprobe gives no duration for shows `-`.
 - **Out-of-range numbers**: a numeric flag given a value past its range is pulled to the nearest end of that range rather than rejected. `--help` prints the accepted range as the flag's type, such as `--crf 1..63`. H.265 caps at 51, so a higher `--crf` lands there when `--codec hevc` is in play.
 - **Failure detail**: a failed encode reports the FFmpeg error only under `--debug`, which keeps a wall of filter-graph text out of normal runs.
