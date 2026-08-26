@@ -7,7 +7,8 @@ import (
 )
 
 type VideoRemuxOpts struct {
-	TargetExt string
+	TargetExt     string
+	FixTimestamps bool
 }
 
 func BuildVideoRemux(inputPath string, p *probe.ProbeResult, opts VideoRemuxOpts) (*OpResult, error) {
@@ -16,11 +17,11 @@ func BuildVideoRemux(inputPath string, p *probe.ProbeResult, opts VideoRemuxOpts
 		targetExt = "mp4"
 	}
 
-	args := []string{
-		"-i", inputPath,
-		"-c", "copy",
-		"-movflags", "+faststart",
+	args := []string{"-i", inputPath, "-c", "copy"}
+	if opts.FixTimestamps {
+		args = append(args, "-avoid_negative_ts", "make_zero")
 	}
+	args = append(args, "-movflags", "+faststart")
 
 	return &OpResult{
 		Args:      args,

@@ -889,3 +889,32 @@ func TestBuildVideoOptimizeSubs(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildVideoRemuxFixTimestamps(t *testing.T) {
+	tests := []struct {
+		name string
+		fix  bool
+		want bool
+	}{
+		{"opted in shifts negative start timestamps", true, true},
+		{"default leaves timestamps untouched", false, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := BuildVideoRemux("capture.mkv", nil, VideoRemuxOpts{
+				TargetExt:     "mp4",
+				FixTimestamps: tt.fix,
+			})
+			if err != nil {
+				t.Fatalf("unexpected err: %v", err)
+			}
+			if got := hasPair(res.Args, "-avoid_negative_ts", "make_zero"); got != tt.want {
+				t.Errorf("got -avoid_negative_ts present = %v, want %v (args: %v)", got, tt.want, res.Args)
+			}
+			if !hasPair(res.Args, "-movflags", "+faststart") {
+				t.Errorf("faststart lost from args: %v", res.Args)
+			}
+		})
+	}
+}
