@@ -55,7 +55,6 @@ func TestClaimOutputAvoidsCollisions(t *testing.T) {
 	claimed.Lock()
 	claimed.paths = nil
 	claimed.Unlock()
-	rootFlags.overwrite = false
 	rootFlags.output = ""
 
 	seen := make(map[string]bool)
@@ -71,33 +70,6 @@ func TestClaimOutputAvoidsCollisions(t *testing.T) {
 	}
 	if len(seen) != 3 {
 		t.Errorf("expected 3 distinct outputs, got %d", len(seen))
-	}
-}
-
-func TestClaimOutputHonorsOverwriteOptIn(t *testing.T) {
-	dir := t.TempDir()
-	input := filepath.Join(dir, "clip.mp4")
-	if err := os.WriteFile(input, []byte("x"), 0o644); err != nil {
-		t.Fatalf("seeding input: %v", err)
-	}
-
-	claimed.Lock()
-	claimed.paths = nil
-	claimed.Unlock()
-	rootFlags.overwrite = true
-	rootFlags.output = ""
-	defer func() { rootFlags.overwrite = false }()
-
-	first, err := claimOutput(input, "audio", "mp3")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	second, err := claimOutput(input, "audio", "mp3")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if first != second {
-		t.Errorf("with -y the same input must resolve to the same path, got %q then %q", first, second)
 	}
 }
 

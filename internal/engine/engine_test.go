@@ -49,7 +49,7 @@ func TestResolveOutputName(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out1, err := ResolveOutputName(src, "optimized", "mp4", "", false)
+	out1, err := ResolveOutputName(src, "optimized", "mp4")
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestResolveOutputName(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out2, err := ResolveOutputName(src, "optimized", "mp4", "", false)
+	out2, err := ResolveOutputName(src, "optimized", "mp4")
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
