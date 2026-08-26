@@ -7,16 +7,7 @@ import (
 	"strings"
 )
 
-func ResolveOutputName(inputPath string, opSuffix string, targetExt string, explicitOutput string, allowOverwrite bool) (string, error) {
-	if explicitOutput != "" {
-		if !allowOverwrite {
-			if _, err := os.Stat(explicitOutput); err == nil {
-				return "", fmt.Errorf("output file %q already exists; use -y to overwrite", explicitOutput)
-			}
-		}
-		return explicitOutput, nil
-	}
-
+func ResolveOutputName(inputPath string, opSuffix string, targetExt string) (string, error) {
 	dir := filepath.Dir(inputPath)
 	base := filepath.Base(inputPath)
 	origExt := filepath.Ext(base)
@@ -35,10 +26,6 @@ func ResolveOutputName(inputPath string, opSuffix string, targetExt string, expl
 	}
 
 	candidate := filepath.Join(dir, baseName)
-	if allowOverwrite {
-		return candidate, nil
-	}
-
 	if _, err := os.Stat(candidate); os.IsNotExist(err) {
 		return candidate, nil
 	}

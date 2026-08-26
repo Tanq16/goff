@@ -50,8 +50,8 @@ var claimed struct {
 }
 
 func claimOutput(input, suffix, targetExt string) (string, error) {
-	if rootFlags.overwrite || rootFlags.output != "" {
-		return engine.ResolveOutputName(input, suffix, targetExt, rootFlags.output, rootFlags.overwrite)
+	if rootFlags.output != "" {
+		return rootFlags.output, nil
 	}
 
 	claimed.Lock()
@@ -64,7 +64,7 @@ func claimOutput(input, suffix, targetExt string) (string, error) {
 		if attempt > 0 {
 			candidate = fmt.Sprintf("%s.%d", suffix, attempt)
 		}
-		out, err := engine.ResolveOutputName(input, candidate, targetExt, "", false)
+		out, err := engine.ResolveOutputName(input, candidate, targetExt)
 		if err != nil {
 			return "", err
 		}
@@ -98,7 +98,7 @@ func claimOutputDir(input, suffix string) (string, error) {
 		if claimed.paths[candidate] {
 			continue
 		}
-		if _, err := os.Stat(candidate); err == nil && !rootFlags.overwrite {
+		if _, err := os.Stat(candidate); err == nil {
 			continue
 		}
 		claimed.paths[candidate] = true
@@ -211,7 +211,7 @@ func runComposed(verb string, namingInput string, res *ops.OpResult, totalSec fl
 		cleanup = func() {}
 	}
 
-	outPath, err := engine.ResolveOutputName(namingInput, res.Suffix, res.TargetExt, rootFlags.output, rootFlags.overwrite)
+	outPath, err := claimOutput(namingInput, res.Suffix, res.TargetExt)
 	if err != nil {
 		cleanup()
 		utils.PrintFatal("failed to resolve output path", err)

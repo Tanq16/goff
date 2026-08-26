@@ -17,9 +17,8 @@ var debugFlag bool
 var forAIFlag bool
 
 var rootFlags struct {
-	output    string
-	overwrite bool
-	jobs      int
+	output string
+	jobs   int
 }
 
 var rootCmd = &cobra.Command{
@@ -29,7 +28,8 @@ var rootCmd = &cobra.Command{
 	Long: `Standalone terminal media suite & FFmpeg CLI harness.
 
 Every per-file command takes one or more inputs and writes one output per input,
-next to the source, so nothing is overwritten without -y.
+next to the source, numbering the name on a collision so nothing is overwritten.
+Only -o overwrites, since it names the destination outright.
 
 concat joins clips end to end, while mix layers audio tracks so they play at the
 same time.`,
@@ -72,8 +72,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&forAIFlag, "for-ai", false, "AI-friendly output (plain text, piped input)")
 	rootCmd.MarkFlagsMutuallyExclusive("debug", "for-ai")
 
-	rootCmd.PersistentFlags().StringVarP(&rootFlags.output, "output", "o", "", "Explicit output path (single input only)")
-	rootCmd.PersistentFlags().BoolVarP(&rootFlags.overwrite, "yes", "y", false, "Allow overwriting existing files")
+	rootCmd.PersistentFlags().StringVarP(&rootFlags.output, "output", "o", "", "Explicit output path, overwritten if it exists (single input only)")
 	rootCmd.PersistentFlags().IntVarP(&rootFlags.jobs, "jobs", "j", 2, "Concurrent encodes when several inputs are given")
 
 	cobra.OnInitialize(setupLogs)

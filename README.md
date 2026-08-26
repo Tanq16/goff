@@ -56,8 +56,7 @@ Every command takes one or more input files and writes alongside them, so nothin
 
 | Flag | Effect |
 |------|--------|
-| `-o`, `--output` | Explicit output path, single input only |
-| `-y`, `--yes` | Allow overwriting existing files |
+| `-o`, `--output` | Explicit output path, overwritten if it exists, single input only |
 | `-j`, `--jobs` | Concurrent encodes when several inputs are given (default 2) |
 | `--for-ai` | Plain-text prefixed output for scripts and agents |
 | `--debug` | Structured logs, including the underlying FFmpeg error |
@@ -164,7 +163,7 @@ goff inspect video.mp4 --for-ai
 
 ## Tips and Notes
 
-- **Safe output naming**: outputs are written as `<name>.<operation>.<ext>` next to the input, incrementing to `.1.<ext>` on a collision. Nothing is overwritten without `-y`.
+- **Safe output naming**: outputs are written as `<name>.<operation>.<ext>` next to the input, incrementing to `.1.<ext>` on a collision, so an existing file is never replaced. `-o` is the exception, since it names the destination outright.
 - **Composed transforms**: combining transform flags produces one encode named after the verb you typed, while a single transform keeps its descriptive name, such as `clip.rot90.mp4`.
 - **Input offsets and levels**: `mix` and `mux --audio` accept `<file>:at=<time>` to delay a track and `:vol=<factor>` to change its level, both optional and in either order. A track with neither starts at 0 at its own level.
 - **Audio modes**: `mux --audio-mode` decides what happens to the audio a video already has. `mix` layers it with the new tracks into one, `replace` drops it, and `separate` keeps every track selectable.
