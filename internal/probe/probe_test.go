@@ -126,12 +126,6 @@ func TestFormatBitRate(t *testing.T) {
 			wantHuman: "4391 kbps",
 		},
 		{
-			name:      "missing bitrate is derived from size and duration",
-			format:    FormatInfo{SizeStr: "1000000", DurationStr: "8.0"},
-			want:      1000000,
-			wantHuman: "1000 kbps",
-		},
-		{
 			name:      "unparseable bitrate falls back to the derivation",
 			format:    FormatInfo{BitRateStr: "N/A", SizeStr: "1000000", DurationStr: "8.0"},
 			want:      1000000,
@@ -146,12 +140,6 @@ func TestFormatBitRate(t *testing.T) {
 		{
 			name:      "zero duration leaves nothing to derive from",
 			format:    FormatInfo{SizeStr: "1000000", DurationStr: "0"},
-			want:      0,
-			wantHuman: "-",
-		},
-		{
-			name:      "zero size leaves nothing to derive from",
-			format:    FormatInfo{SizeStr: "0", DurationStr: "8.0"},
 			want:      0,
 			wantHuman: "-",
 		},

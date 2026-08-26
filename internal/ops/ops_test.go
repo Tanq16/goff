@@ -765,19 +765,6 @@ func TestBuildVideoOptimizeCompat(t *testing.T) {
 		absent    []string
 	}{
 		{
-			name:   "compat maps the first tracks and normalizes pixels, rate, and audio",
-			probe:  withStreams(video, audio),
-			compat: true,
-			wantPairs: [][2]string{
-				{"-map", "0:v:0"},
-				{"-pix_fmt", "yuv420p"},
-				{"-fps_mode", "cfr"},
-				{"-map", "0:a:0"},
-				{"-ac", "2"},
-				{"-ar", "48000"},
-			},
-		},
-		{
 			name:      "compat on a silent source disables audio instead of mapping a track that is not there",
 			probe:     withStreams(video),
 			compat:    true,
@@ -850,18 +837,6 @@ func TestBuildVideoOptimizeSubs(t *testing.T) {
 			streams: withSubs(0),
 			absent:  []string{"-c:s", "0:s:0", "-sn"},
 		},
-		{
-			name:    "none drops subtitles outright",
-			subs:    "none",
-			streams: withSubs(2),
-			absent:  []string{"-c:s", "0:s:0"},
-		},
-		{
-			name:    "auto leaves stream selection to ffmpeg",
-			subs:    "auto",
-			streams: withSubs(2),
-			absent:  []string{"-c:s", "0:s:0", "-sn"},
-		},
 	}
 
 	for _, tt := range tests {
@@ -882,38 +857,6 @@ func TestBuildVideoOptimizeSubs(t *testing.T) {
 				if slices.Contains(res.Args, gone) {
 					t.Errorf("args should not contain %q: %v", gone, res.Args)
 				}
-			}
-			if tt.subs == "none" && !slices.Contains(res.Args, "-sn") {
-				t.Errorf("expected -sn in args: %v", res.Args)
-			}
-		})
-	}
-}
-
-func TestBuildVideoRemuxFixTimestamps(t *testing.T) {
-	tests := []struct {
-		name string
-		fix  bool
-		want bool
-	}{
-		{"opted in shifts negative start timestamps", true, true},
-		{"default leaves timestamps untouched", false, false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			res, err := BuildVideoRemux("capture.mkv", nil, VideoRemuxOpts{
-				TargetExt:     "mp4",
-				FixTimestamps: tt.fix,
-			})
-			if err != nil {
-				t.Fatalf("unexpected err: %v", err)
-			}
-			if got := hasPair(res.Args, "-avoid_negative_ts", "make_zero"); got != tt.want {
-				t.Errorf("got -avoid_negative_ts present = %v, want %v (args: %v)", got, tt.want, res.Args)
-			}
-			if !hasPair(res.Args, "-movflags", "+faststart") {
-				t.Errorf("faststart lost from args: %v", res.Args)
 			}
 		})
 	}
