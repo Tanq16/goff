@@ -90,6 +90,16 @@ func (f *FormatInfo) Size() int64 {
 	return s
 }
 
+func (f *FormatInfo) BitRate() int64 {
+	if br, err := strconv.ParseInt(f.BitRateStr, 10, 64); err == nil && br > 0 {
+		return br
+	}
+	if d := f.Duration(); d > 0 {
+		return int64(float64(f.Size()) * 8 / d)
+	}
+	return 0
+}
+
 func ParseFPS(fpsStr string) float64 {
 	if fpsStr == "" || fpsStr == "0/0" {
 		return 0

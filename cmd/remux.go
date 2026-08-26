@@ -8,7 +8,8 @@ import (
 )
 
 var remuxFlags struct {
-	to string
+	to            string
+	fixTimestamps bool
 }
 
 var remuxCmd = &cobra.Command{
@@ -20,7 +21,8 @@ var remuxCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		runFiles("remux", args, func(input string, p *probe.ProbeResult) (*ops.OpResult, error) {
 			return ops.BuildVideoRemux(input, p, ops.VideoRemuxOpts{
-				TargetExt: remuxFlags.to,
+				TargetExt:     remuxFlags.to,
+				FixTimestamps: remuxFlags.fixTimestamps,
 			})
 		})
 	},
@@ -28,4 +30,5 @@ var remuxCmd = &cobra.Command{
 
 func init() {
 	remuxCmd.Flags().Var(newEnum(&remuxFlags.to, "mp4", "mp4", "mkv", "mov"), "to", "Target container")
+	remuxCmd.Flags().BoolVar(&remuxFlags.fixTimestamps, "fix-timestamps", false, "Shift negative start timestamps to zero")
 }

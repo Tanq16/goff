@@ -111,3 +111,55 @@ func TestProbeResultMethods(t *testing.T) {
 		t.Errorf("got HDRType %q, want HDR10 (PQ)", res.HDRType())
 	}
 }
+
+func TestFormatBitRate(t *testing.T) {
+	tests := []struct {
+		name      string
+		format    FormatInfo
+		want      int64
+		wantHuman string
+	}{
+		{
+			name:      "reported container bitrate is used as is",
+			format:    FormatInfo{BitRateStr: "4391883", SizeStr: "2028501080", DurationStr: "3695.0"},
+			want:      4391883,
+			wantHuman: "4391 kbps",
+		},
+		{
+			name:      "unparseable bitrate falls back to the derivation",
+			format:    FormatInfo{BitRateStr: "N/A", SizeStr: "1000000", DurationStr: "8.0"},
+			want:      1000000,
+			wantHuman: "1000 kbps",
+		},
+		{
+			name:      "zero bitrate falls back to the derivation",
+			format:    FormatInfo{BitRateStr: "0", SizeStr: "1000000", DurationStr: "8.0"},
+			want:      1000000,
+			wantHuman: "1000 kbps",
+		},
+		{
+			name:      "zero duration leaves nothing to derive from",
+			format:    FormatInfo{SizeStr: "1000000", DurationStr: "0"},
+			want:      0,
+			wantHuman: "-",
+		},
+		{
+			name:      "an empty format reports no bitrate rather than zero kbps",
+			format:    FormatInfo{},
+			want:      0,
+			wantHuman: "-",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.format.BitRate(); got != tt.want {
+				t.Errorf("BitRate() = %d, want %d", got, tt.want)
+			}
+			res := ProbeResult{Format: tt.format}
+			if got := res.HumanBitRate(); got != tt.wantHuman {
+				t.Errorf("HumanBitRate() = %q, want %q", got, tt.wantHuman)
+			}
+		})
+	}
+}

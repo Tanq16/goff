@@ -736,3 +736,128 @@ func TestBuildVideoTransformSpeedWithoutAudioStaysSimple(t *testing.T) {
 		}
 	}
 }
+
+func hasPair(args []string, flag, value string) bool {
+	for i := range len(args) - 1 {
+		if args[i] == flag && args[i+1] == value {
+			return true
+		}
+	}
+	return false
+}
+
+func TestBuildVideoOptimizeCompat(t *testing.T) {
+	withStreams := func(streams ...probe.StreamInfo) *probe.ProbeResult {
+		return &probe.ProbeResult{
+			Format:  probe.FormatInfo{DurationStr: "60.0"},
+			Streams: streams,
+		}
+	}
+	video := probe.StreamInfo{CodecType: "video", Width: 3840, Height: 2160}
+	audio := probe.StreamInfo{CodecType: "audio", Channels: 6}
+
+	tests := []struct {
+		name      string
+		probe     *probe.ProbeResult
+		compat    bool
+		wantPairs [][2]string
+		wantFlags []string
+		absent    []string
+	}{
+		{
+			name:      "compat on a silent source disables audio instead of mapping a track that is not there",
+			probe:     withStreams(video),
+			compat:    true,
+			wantPairs: [][2]string{{"-map", "0:v:0"}, {"-fps_mode", "cfr"}},
+			wantFlags: []string{"-an"},
+			absent:    []string{"0:a:0", "-ac", "-ar", "-c:a"},
+		},
+		{
+			name:   "without compat none of the normalization reaches the args",
+			probe:  withStreams(video, audio),
+			compat: false,
+			absent: []string{"-map", "-pix_fmt", "-fps_mode", "-ac", "-ar", "-an"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := BuildVideoOptimize("input.mkv", tt.probe, VideoOptimizeOpts{
+				Codec:  "hevc",
+				Compat: tt.compat,
+			})
+			if err != nil {
+				t.Fatalf("unexpected err: %v", err)
+			}
+			for _, pair := range tt.wantPairs {
+				if !hasPair(res.Args, pair[0], pair[1]) {
+					t.Errorf("missing %s %s in args: %v", pair[0], pair[1], res.Args)
+				}
+			}
+			for _, want := range tt.wantFlags {
+				if !slices.Contains(res.Args, want) {
+					t.Errorf("missing %q in args: %v", want, res.Args)
+				}
+			}
+			for _, gone := range tt.absent {
+				if slices.Contains(res.Args, gone) {
+					t.Errorf("args should not contain %q: %v", gone, res.Args)
+				}
+			}
+		})
+	}
+}
+
+func TestBuildVideoOptimizeSubs(t *testing.T) {
+	withSubs := func(n int) *probe.ProbeResult {
+		streams := []probe.StreamInfo{{CodecType: "video", Width: 1920, Height: 1080}}
+		for range n {
+			streams = append(streams, probe.StreamInfo{CodecType: "subtitle", CodecName: "subrip"})
+		}
+		return &probe.ProbeResult{Format: probe.FormatInfo{DurationStr: "60.0"}, Streams: streams}
+	}
+
+	tests := []struct {
+		name      string
+		subs      string
+		streams   *probe.ProbeResult
+		wantPairs [][2]string
+		absent    []string
+	}{
+		{
+			name:      "all maps every subtitle stream and converts them for mp4",
+			subs:      "all",
+			streams:   withSubs(2),
+			wantPairs: [][2]string{{"-map", "0:s:0"}, {"-map", "0:s:1"}, {"-c:s", "mov_text"}},
+			absent:    []string{"0:s:2", "-sn"},
+		},
+		{
+			name:    "all on a source with no subtitles emits no mapping and no encoder",
+			subs:    "all",
+			streams: withSubs(0),
+			absent:  []string{"-c:s", "0:s:0", "-sn"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := BuildVideoOptimize("input.mkv", tt.streams, VideoOptimizeOpts{
+				Codec: "hevc",
+				Subs:  tt.subs,
+			})
+			if err != nil {
+				t.Fatalf("unexpected err: %v", err)
+			}
+			for _, pair := range tt.wantPairs {
+				if !hasPair(res.Args, pair[0], pair[1]) {
+					t.Errorf("missing %s %s in args: %v", pair[0], pair[1], res.Args)
+				}
+			}
+			for _, gone := range tt.absent {
+				if slices.Contains(res.Args, gone) {
+					t.Errorf("args should not contain %q: %v", gone, res.Args)
+				}
+			}
+		})
+	}
+}

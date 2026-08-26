@@ -25,7 +25,7 @@ var inspectCmd = &cobra.Command{
 		}
 
 		utils.PrintInfo(fmt.Sprintf("File: %s", filepath.Base(filePath)))
-		utils.PrintInfo(fmt.Sprintf("Duration: %s | Size: %s | Format: %s", p.HumanDuration(), p.HumanSize(), p.Format.FormatLongName))
+		utils.PrintInfo(fmt.Sprintf("Duration: %s | Size: %s | Bitrate: %s | Format: %s", p.HumanDuration(), p.HumanSize(), p.HumanBitRate(), p.Format.FormatLongName))
 
 		var headers = []string{"#", "Type", "Codec", "Details", "Bitrate", "Default"}
 		var rows [][]string
