@@ -26,6 +26,16 @@ func (p *ProbeResult) AudioStreams() []StreamInfo {
 	return list
 }
 
+func (p *ProbeResult) SubtitleStreams() []StreamInfo {
+	var list []StreamInfo
+	for _, s := range p.Streams {
+		if strings.EqualFold(s.CodecType, "subtitle") {
+			list = append(list, s)
+		}
+	}
+	return list
+}
+
 func (p *ProbeResult) PrimaryVideoStream() *StreamInfo {
 	videos := p.VideoStreams()
 	if len(videos) == 0 {

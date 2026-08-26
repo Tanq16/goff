@@ -820,3 +820,72 @@ func TestBuildVideoOptimizeCompat(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildVideoOptimizeSubs(t *testing.T) {
+	withSubs := func(n int) *probe.ProbeResult {
+		streams := []probe.StreamInfo{{CodecType: "video", Width: 1920, Height: 1080}}
+		for range n {
+			streams = append(streams, probe.StreamInfo{CodecType: "subtitle", CodecName: "subrip"})
+		}
+		return &probe.ProbeResult{Format: probe.FormatInfo{DurationStr: "60.0"}, Streams: streams}
+	}
+
+	tests := []struct {
+		name      string
+		subs      string
+		streams   *probe.ProbeResult
+		wantPairs [][2]string
+		absent    []string
+	}{
+		{
+			name:      "all maps every subtitle stream and converts them for mp4",
+			subs:      "all",
+			streams:   withSubs(2),
+			wantPairs: [][2]string{{"-map", "0:s:0"}, {"-map", "0:s:1"}, {"-c:s", "mov_text"}},
+			absent:    []string{"0:s:2", "-sn"},
+		},
+		{
+			name:    "all on a source with no subtitles emits no mapping and no encoder",
+			subs:    "all",
+			streams: withSubs(0),
+			absent:  []string{"-c:s", "0:s:0", "-sn"},
+		},
+		{
+			name:    "none drops subtitles outright",
+			subs:    "none",
+			streams: withSubs(2),
+			absent:  []string{"-c:s", "0:s:0"},
+		},
+		{
+			name:    "auto leaves stream selection to ffmpeg",
+			subs:    "auto",
+			streams: withSubs(2),
+			absent:  []string{"-c:s", "0:s:0", "-sn"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := BuildVideoOptimize("input.mkv", tt.streams, VideoOptimizeOpts{
+				Codec: "hevc",
+				Subs:  tt.subs,
+			})
+			if err != nil {
+				t.Fatalf("unexpected err: %v", err)
+			}
+			for _, pair := range tt.wantPairs {
+				if !hasPair(res.Args, pair[0], pair[1]) {
+					t.Errorf("missing %s %s in args: %v", pair[0], pair[1], res.Args)
+				}
+			}
+			for _, gone := range tt.absent {
+				if slices.Contains(res.Args, gone) {
+					t.Errorf("args should not contain %q: %v", gone, res.Args)
+				}
+			}
+			if tt.subs == "none" && !slices.Contains(res.Args, "-sn") {
+				t.Errorf("expected -sn in args: %v", res.Args)
+			}
+		})
+	}
+}

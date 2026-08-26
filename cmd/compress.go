@@ -19,6 +19,7 @@ var compressFlags struct {
 	size     string
 	lossless bool
 	compat   bool
+	subs     string
 }
 
 func parseSizeBudget(s string) (float64, error) {
@@ -46,7 +47,8 @@ var compressCmd = &cobra.Command{
 	Example: `  goff compress movie.mkv
   goff compress movie.mkv --codec av1 --crf 28
   goff compress clip.mp4 --size 25MB
-  goff compress master.mov --lossless`,
+  goff compress master.mov --lossless
+  goff compress movie.mkv --compat --subs all`,
 	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		var targetMB float64
@@ -69,6 +71,7 @@ var compressCmd = &cobra.Command{
 				TargetSizeMB: targetMB,
 				CustomSuffix: suffix,
 				Compat:       compressFlags.compat,
+				Subs:         compressFlags.subs,
 			})
 		})
 	},
@@ -81,6 +84,7 @@ func init() {
 	compressCmd.Flags().StringVar(&compressFlags.size, "size", "", "Target file size budget, e.g. 25MB (overrides --crf)")
 	compressCmd.Flags().BoolVar(&compressFlags.lossless, "lossless", false, "Re-encode with no video quality loss, keeping the source resolution")
 	compressCmd.Flags().BoolVar(&compressFlags.compat, "compat", false, "Normalize for wide playback: first video and audio track, 8-bit, constant frame rate, 48kHz stereo")
+	compressCmd.Flags().Var(newEnum(&compressFlags.subs, "auto", "auto", "all", "none"), "subs", "Subtitle handling")
 	compressCmd.MarkFlagsMutuallyExclusive("crf", "size", "lossless")
 	compressCmd.MarkFlagsMutuallyExclusive("height", "lossless")
 	compressCmd.MarkFlagsMutuallyExclusive("compat", "lossless")

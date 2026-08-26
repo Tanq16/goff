@@ -18,6 +18,7 @@ type VideoOptimizeOpts struct {
 	CustomSuffix string
 	TargetExt    string
 	Compat       bool
+	Subs         string
 }
 
 func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimizeOpts) (*OpResult, error) {
@@ -130,6 +131,21 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 		args = append(args, "-map", "0:a:0", "-c:a", "aac", "-b:a", audioBitrate, "-ac", "2", "-ar", "48000")
 	default:
 		args = append(args, "-c:a", "aac", "-b:a", audioBitrate)
+	}
+
+	switch opts.Subs {
+	case "all":
+		if p != nil {
+			subCount := len(p.SubtitleStreams())
+			for i := range subCount {
+				args = append(args, "-map", fmt.Sprintf("0:s:%d", i))
+			}
+			if subCount > 0 {
+				args = append(args, "-c:s", "mov_text")
+			}
+		}
+	case "none":
+		args = append(args, "-sn")
 	}
 
 	args = append(args, "-movflags", "+faststart")
