@@ -3,7 +3,7 @@
   <h1>goff</h1>
 
   <a href="https://github.com/Tanq16/goff/actions/workflows/release.yaml"><img alt="Build Workflow" src="https://github.com/Tanq16/goff/actions/workflows/release.yaml/badge.svg"></a>&nbsp;<a href="https://github.com/Tanq16/goff/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/Tanq16/goff"></a><br><br>
-  <a href="#capabilities">Capabilities</a> &bull; <a href="#installation">Installation</a> &bull; <a href="#usage">Usage</a> &bull; <a href="#tips-and-notes">Tips & Notes</a>
+  <a href="#capabilities">Capabilities</a> &bull; <a href="#install">Install</a> &bull; <a href="#usage">Usage</a> &bull; <a href="#notes">Notes</a>
 </div>
 
 ---
@@ -19,12 +19,12 @@ It exists so you stop looking up filter syntax for the same dozen jobs. It is no
 | **Compression** | `compress` | H.265 / AV1 / H.264 re-encoding, height caps, target file size, lossless mode, automatic HDR tone-mapping, playback-compatibility normalization |
 | **Containers** | `remux`, `hls` | Lossless container switching, VoD HLS packaging as fMP4 or MPEG-TS |
 | **Audio** | `extract`, `convert`, `normalize`, `mix` | Audio extraction from video, format transcoding, EBU R128 loudness normalization, layering tracks into one |
-| **Transforms** | `rotate`, `scale`, `speed`, `crop`, `mute` | Rotation and flips, resolution tiers, pitch-corrected speed, 9:16 vertical crop, audio removal |
+| **Transforms** | `transform` | Rotation and flips, resolution tiers, pitch-corrected speed, 9:16 vertical crop, audio removal, composed into one encode |
 | **Segments** | `trim`, `gif` | Time-range cuts, 2-pass palettegen GIF and animated WebP |
 | **Multi-file** | `concat`, `mux`, `subs`, `watermark` | Clip joining, external audio muxing, subtitle embedding, logo overlays |
 | **Inspection** | `inspect` | Stream table with codecs, resolutions, per-stream and container bitrates, and HDR transfer characteristics |
 
-## Installation
+## Install
 
 `ffmpeg` and `ffprobe` must be on your `PATH`, whichever path below you take.
 
@@ -52,14 +52,13 @@ make build
 
 ## Usage
 
-Every command takes one or more input files and writes alongside them, so nothing is overwritten by default. These flags work on all of them:
+Every command takes one or more input files and writes alongside them, so nothing is overwritten by default.
 
-| Flag | Effect |
-|------|--------|
-| `-o`, `--output` | Explicit output path, overwritten if it exists, single input only |
-| `-j`, `--jobs` | Concurrent encodes when several inputs are given (default 2) |
-| `--for-ai` | Plain-text prefixed output for scripts and agents |
-| `--debug` | Structured logs, including the underlying FFmpeg error |
+| Flag | Effect | Where |
+|------|--------|-------|
+| `--debug` | Structured logs, including the underlying FFmpeg error | every command |
+| `-o`, `--output` | Explicit output path, overwritten if it exists, single input only | every command except `inspect` |
+| `-j`, `--jobs` | Concurrent encodes when several inputs are given (default 2) | the per-file commands, not `concat`, `mux`, `subs`, `watermark`, or `mix` |
 
 Pass several files to any per-file command and they process in parallel:
 
@@ -87,8 +86,8 @@ goff compress input.mkv --preset slow --audio-bitrate 192k
 ```bash
 goff remux input.mkv --to mp4     # no re-encoding
 goff remux capture.mkv --to mp4 --fix-timestamps
-goff hls input.mp4 --to fmp4      # writes input.hls-fmp4/index.m3u8 plus segments
-goff hls input.mp4 --to ts --segment 4
+goff hls input.mp4 --segment-type fmp4   # writes input.hls-fmp4/index.m3u8 plus segments
+goff hls input.mp4 --segment-type ts --segment-duration 4
 ```
 
 ### Audio
@@ -108,16 +107,16 @@ goff mix a.mp3 b.mp3 --fit shortest          # stop at the shortest input
 
 ### Transforms
 
-Each transform is its own verb, and `--by` carries the value that verb is named for. Sibling flags compose into a **single** encode instead of stacking generations of quality loss:
+One verb takes a flag per dimension, and any combination of them composes into a **single** encode instead of stacking generations of quality loss. At least one is required:
 
 ```bash
-goff rotate clip.mp4 --by 90          # 90, 180, 270, hflip, vflip
-goff scale clip.mp4 --by 720p         # 720p, 1080p, 4k, or 1280x720
-goff speed clip.mp4 --by 1.5          # audio pitch corrected
-goff crop clip.mp4                    # 9:16 for Shorts / Reels
-goff mute clip.mp4
+goff transform clip.mp4 --rotate 90     # 90, 180, 270, hflip, vflip
+goff transform clip.mp4 --scale 720p    # 4k, 2160p, 1440p, 2k, 1080p, fhd, 720p, hd, 480p, sd, or 1280x720
+goff transform clip.mp4 --speed 1.5     # audio pitch corrected
+goff transform clip.mp4 --crop          # 9:16 for Shorts / Reels
+goff transform clip.mp4 --mute
 
-goff rotate clip.mp4 --by 90 --scale 720p --mute   # one encode, three changes
+goff transform clip.mp4 --rotate 90 --scale 720p --mute   # one encode, three changes
 ```
 
 ### Segments
@@ -140,31 +139,32 @@ goff mux talk.mp4 --audio dub.m4a --audio-mode replace
 goff mux film.mkv --audio en.m4a --audio fr.m4a --audio-mode separate
 goff mux clip.mp4 --audio bed.mp3 --fit longest # run to the end of the music
 
-goff subs video.mp4 --file subs.srt             # embed as a track
-goff subs video.mp4 --file subs.srt --burn      # render into the picture
+goff subs video.mp4 --subtitles subs.srt        # embed as a track
+goff subs video.mp4 --subtitles subs.srt --burn # render into the picture
 
-goff watermark video.mp4 --logo logo.png --at bottom-right --width 12 --opacity 0.6
+goff watermark video.mp4 --logo logo.png --position bottom-right --width 12 --opacity 0.6
 ```
 
 ### Inspection
 
 ```bash
 goff inspect movie.mkv
+goff inspect movie.mkv --json    # the same reading as a data contract
 ```
 
 ### Scripting and agents
 
-`--for-ai` swaps styled output for parseable prefixes (`[OK]`, `[ERROR]`, `[PROGRESS]`, `[INFO]`), keeps every progress line instead of redrawing one, and renders tables as Markdown:
+Styled output is a property of the destination rather than a flag: piping any command anywhere strips the colors and keeps every progress line instead of redrawing one. `--debug` swaps the styled tier for structured logs carrying the underlying FFmpeg error, and `inspect --json` emits a stable struct instead of a table to scrape:
 
 ```bash
-goff compress video.mp4 --for-ai
-goff inspect video.mp4 --for-ai
+goff compress video.mp4 --debug
+goff inspect video.mp4 --json | jq '.streams[] | select(.type == "audio")'
 ```
 
-## Tips and Notes
+## Notes
 
 - **Safe output naming**: outputs are written as `<name>.<operation>.<ext>` next to the input, incrementing to `.1.<ext>` on a collision, so an existing file is never replaced. `-o` is the exception, since it names the destination outright.
-- **Composed transforms**: combining transform flags produces one encode named after the verb you typed, while a single transform keeps its descriptive name, such as `clip.rot90.mp4`.
+- **Composed transforms**: giving `transform` two or more flags produces one encode named `<name>.transform.<ext>`, while a single flag keeps its descriptive name, such as `clip.rot90.mp4`.
 - **Input offsets and levels**: `mix` and `mux --audio` accept `<file>:at=<time>` to delay a track and `:vol=<factor>` to change its level, both optional and in either order. A track with neither starts at 0 at its own level.
 - **Audio modes**: `mux --audio-mode` decides what happens to the audio a video already has. `mix` layers it with the new tracks into one, `replace` drops it, and `separate` keeps every track selectable.
 - **HLS layout**: each packaged video gets its own directory holding `index.m3u8` and the segments, so two packaged videos never share a segment name. fMP4 packaging adds an `init.mp4` next to them.
@@ -175,5 +175,5 @@ goff inspect video.mp4 --for-ai
 - **Subtitles**: `compress --subs all` maps every subtitle track and converts it to `mov_text`, which covers text subtitles and fails on image ones such as PGS. `none` drops them, and the default `auto` leaves the choice to FFmpeg.
 - **Timestamp shifting**: `remux --fix-timestamps` moves a negative start time to zero, which matters for captures whose audio and video begin at different points.
 - **Container bitrate**: `inspect` prints the container bitrate on its summary line, deriving it from size over duration when FFprobe reports none. A derived figure can differ slightly from a reported one, and a file FFprobe gives no duration for shows `-`.
-- **Out-of-range numbers**: a numeric flag given a value past its range is pulled to the nearest end of that range rather than rejected. `--help` prints the accepted range as the flag's type, such as `--crf 1..63`. H.265 caps at 51, so a higher `--crf` lands there when `--codec hevc` is in play.
+- **Out-of-range numbers**: a numeric flag given a value past its range is rejected before any work starts. `--help` prints the accepted range as the flag's type, such as `--crf 1..63`. H.265 caps at 51, so a `--crf` above that lands at 51 when `--codec hevc` is in play.
 - **Failure detail**: a failed encode reports the FFmpeg error only under `--debug`, which keeps a wall of filter-graph text out of normal runs.
