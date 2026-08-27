@@ -8,14 +8,12 @@ import (
 )
 
 type VideoTransformOpts struct {
-	Scale         string
-	CropVertical  bool
-	Rotate        string
-	Speed         float64
-	StripAudio    bool
-	VolumeBoost   float64
-	DownmixStereo bool
-	CustomSuffix  string
+	Scale        string
+	CropVertical bool
+	Rotate       string
+	Speed        float64
+	StripAudio   bool
+	CustomSuffix string
 }
 
 func BuildVideoTransform(inputPath string, p *probe.ProbeResult, opts VideoTransformOpts) (*OpResult, error) {
@@ -52,26 +50,11 @@ func BuildVideoTransform(inputPath string, p *probe.ProbeResult, opts VideoTrans
 	}
 
 	if opts.Scale != "" {
-		var scaleFilter string
-		switch strings.ToLower(opts.Scale) {
-		case "4k", "2160p":
-			scaleFilter = "scale='min(3840,iw)':'min(2160,ih)':force_original_aspect_ratio=decrease"
-			suffix = "4k"
-		case "1440p", "2k":
-			scaleFilter = "scale='min(2560,iw)':'min(1440,ih)':force_original_aspect_ratio=decrease"
-			suffix = "1440p"
-		case "1080p", "fhd":
-			scaleFilter = "scale='min(1920,iw)':'min(1080,ih)':force_original_aspect_ratio=decrease"
-			suffix = "1080p"
-		case "720p", "hd":
-			scaleFilter = "scale='min(1280,iw)':'min(720,ih)':force_original_aspect_ratio=decrease"
-			suffix = "720p"
-		case "480p", "sd":
-			scaleFilter = "scale='min(854,iw)':'min(480,ih)':force_original_aspect_ratio=decrease"
-			suffix = "480p"
-		default:
-			scaleFilter = fmt.Sprintf("scale=%s", opts.Scale)
-			suffix = "scaled"
+		scaleFilter := fmt.Sprintf("scale=%s", opts.Scale)
+		suffix = "scaled"
+		if tier, ok := LookupScaleTier(opts.Scale); ok {
+			scaleFilter = fmt.Sprintf("scale='min(%d,iw)':'min(%d,ih)':force_original_aspect_ratio=decrease", tier.Width, tier.Height)
+			suffix = tier.Suffix
 		}
 		vfFilters = append(vfFilters, scaleFilter+",scale=trunc(iw/2)*2:trunc(ih/2)*2")
 	}
@@ -83,20 +66,6 @@ func BuildVideoTransform(inputPath string, p *probe.ProbeResult, opts VideoTrans
 		if !opts.StripAudio && p != nil && len(p.AudioStreams()) > 0 {
 			retimeAudio = true
 			afFilters = append(afFilters, fmt.Sprintf("atempo=%f", opts.Speed))
-		}
-	}
-
-	if opts.VolumeBoost > 0 && opts.VolumeBoost != 1.0 {
-		afFilters = append(afFilters, fmt.Sprintf("volume=%f", opts.VolumeBoost))
-		if suffix == "transformed" {
-			suffix = "boosted"
-		}
-	}
-
-	if opts.DownmixStereo {
-		afFilters = append(afFilters, "pan=stereo|FL=0.5*FC+0.707*FL+0.707*BL+0.5*LFE|FR=0.5*FC+0.707*FR+0.707*BR+0.5*LFE")
-		if suffix == "transformed" {
-			suffix = "stereo"
 		}
 	}
 

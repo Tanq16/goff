@@ -5,7 +5,6 @@ import (
 
 	"github.com/Tanq16/goff/internal/ops"
 	"github.com/Tanq16/goff/internal/probe"
-	"github.com/Tanq16/goff/utils"
 )
 
 var trimFlags struct {
@@ -23,10 +22,6 @@ var trimCmd = &cobra.Command{
   goff trim video.mp4 --start 90 --duration 30 --accurate`,
 	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		if trimFlags.start == "" && trimFlags.end == "" && trimFlags.duration == "" {
-			utils.PrintFatal("trim needs at least one of --start, --end, or --duration", nil)
-		}
-
 		runFiles("trim", args, func(input string, p *probe.ProbeResult) (*ops.OpResult, error) {
 			return ops.BuildVideoTrim(input, p, ops.VideoTrimOpts{
 				Start:    trimFlags.start,
@@ -44,4 +39,8 @@ func init() {
 	trimCmd.Flags().Var(newTimestamp(&trimFlags.duration), "duration", "Length to keep from --start, e.g. 30")
 	trimCmd.Flags().BoolVar(&trimFlags.accurate, "accurate", false, "Re-encode for frame-accurate cuts instead of copying streams")
 	trimCmd.MarkFlagsMutuallyExclusive("end", "duration")
+	trimCmd.MarkFlagsOneRequired("start", "end", "duration")
+
+	addOutputFlag(trimCmd)
+	addJobsFlag(trimCmd)
 }

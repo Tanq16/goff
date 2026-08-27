@@ -16,7 +16,6 @@ var mixFlags struct {
 	to      string
 	bitrate string
 	fit     string
-	sources []ops.AudioSource
 }
 
 var mixCmd = &cobra.Command{
@@ -32,27 +31,23 @@ To join clips end to end instead of layering them, use concat.`,
 	Example: `  goff mix voice.wav music.mp3
   goff mix voice.wav music.mp3:at=5:vol=0.3 --to m4a
   goff mix a.mp3 b.mp3 --fit shortest`,
-	Args: func(cmd *cobra.Command, args []string) error {
-		if len(args) < 2 {
-			return fmt.Errorf("mix needs at least two audio inputs")
-		}
-		mixFlags.sources = mixFlags.sources[:0]
+	Args: cobra.MinimumNArgs(2),
+	Run: func(cmd *cobra.Command, args []string) {
+		sources := make([]ops.AudioSource, 0, len(args))
 		for _, arg := range args {
 			in, err := parseMediaInput(arg)
 			if err != nil {
-				return fmt.Errorf("%s: %w", arg, err)
+				utils.PrintFatal(fmt.Sprintf("invalid input %q", arg), err)
 			}
-			mixFlags.sources = append(mixFlags.sources, ops.AudioSource{
+			sources = append(sources, ops.AudioSource{
 				Path:    in.Path,
 				DelayMS: in.DelayMS,
 				Volume:  in.Volume,
 			})
 		}
-		return nil
-	},
-	Run: func(cmd *cobra.Command, args []string) {
+
 		res, err := ops.BuildMultiMix(ops.MultiMixOpts{
-			Sources: mixFlags.sources,
+			Sources: sources,
 			Fit:     mixFlags.fit,
 			Format:  mixFlags.to,
 			Bitrate: mixFlags.bitrate,
@@ -61,7 +56,7 @@ To join clips end to end instead of layering them, use concat.`,
 			utils.PrintFatal("failed to build mix arguments", err)
 		}
 
-		runComposed("mix", mixFlags.sources[0].Path, res, mixDuration(mixFlags.sources, mixFlags.fit), nil)
+		runComposed("mix", sources[0].Path, res, mixDuration(sources, mixFlags.fit))
 	},
 }
 
@@ -87,4 +82,6 @@ func init() {
 	mixCmd.Flags().Var(newEnum(&mixFlags.to, "mp3", "mp3", "aac", "m4a", "flac", "opus", "wav", "ogg"), "to", "Output audio format")
 	mixCmd.Flags().Var(newBitrate(&mixFlags.bitrate), "bitrate", "Audio bitrate, e.g. 256k (format default when unset)")
 	mixCmd.Flags().Var(newEnum(&mixFlags.fit, "longest", "longest", "shortest"), "fit", "Output length follows the longest or the shortest input")
+
+	addOutputFlag(mixCmd)
 }

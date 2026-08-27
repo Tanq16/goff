@@ -62,7 +62,7 @@ keeps every track selectable instead of combining them.`,
 			utils.PrintFatal("failed to build mux arguments", err)
 		}
 
-		runComposed("mux", video, res, p.TotalDuration(), nil)
+		runComposed("mux", video, res, p.TotalDuration())
 	},
 }
 
@@ -72,4 +72,6 @@ func init() {
 	muxCmd.Flags().Var(newEnum(&muxFlags.mode, ops.MuxModeMix, ops.MuxModeMix, ops.MuxModeReplace, ops.MuxModeSeparate), "audio-mode", "What happens to the audio the video already has")
 	muxCmd.Flags().Var(newEnum(&muxFlags.fit, "video", "video", "longest", "shortest"), "fit", "Output length follows the video, the longest input, or the shortest")
 	muxCmd.Flags().Var(newBitrate(&muxFlags.bitrate), "bitrate", "Audio bitrate for the muxed track (default 192k)")
+
+	addOutputFlag(muxCmd)
 }

@@ -2,21 +2,27 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"strconv"
+
+	"github.com/spf13/cobra"
 
 	"github.com/Tanq16/goff/internal/probe"
 	"github.com/Tanq16/goff/utils"
-	"github.com/spf13/cobra"
 )
+
+var inspectFlags struct {
+	json bool
+}
 
 var inspectCmd = &cobra.Command{
 	Use:     "inspect <file>",
 	GroupID: "info",
 	Short:   "Inspect media streams, codecs, bitrates, and HDR parameters",
-	Example: "  goff inspect movie.mkv",
-	Args:    cobra.ExactArgs(1),
+	Example: `  goff inspect movie.mkv
+  goff inspect movie.mkv --json`,
+	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		filePath := args[0]
 		p, err := probe.RunProbe(context.Background(), filePath)
@@ -24,70 +30,33 @@ var inspectCmd = &cobra.Command{
 			utils.PrintFatal(fmt.Sprintf("failed to probe %q", filePath), err)
 		}
 
-		utils.PrintInfo(fmt.Sprintf("File: %s", filepath.Base(filePath)))
-		utils.PrintInfo(fmt.Sprintf("Duration: %s | Size: %s | Bitrate: %s | Format: %s", p.HumanDuration(), p.HumanSize(), p.HumanBitRate(), p.Format.FormatLongName))
+		summary := p.Summarize(filePath)
 
-		var headers = []string{"#", "Type", "Codec", "Details", "Bitrate", "Default"}
-		var rows [][]string
-
-		for _, s := range p.Streams {
-			idx := strconv.Itoa(s.Index)
-			codecType := s.CodecType
-			codecName := s.CodecName
-			if s.Profile != "" {
-				codecName = fmt.Sprintf("%s (%s)", s.CodecName, s.Profile)
+		if inspectFlags.json {
+			encoded, err := json.MarshalIndent(summary, "", "  ")
+			if err != nil {
+				utils.PrintFatal("failed to encode the inspection as json", err)
 			}
-
-			var details string
-			switch s.CodecType {
-			case "video":
-				fps := probe.ParseFPS(s.AvgFrameRate)
-				hdrTag := ""
-				if p.IsHDR() {
-					hdrTag = fmt.Sprintf(" [%s]", p.HDRType())
-				}
-				details = fmt.Sprintf("%dx%d @ %.2ffps, %s%s", s.Width, s.Height, fps, s.PixFmt, hdrTag)
-			case "audio":
-				details = fmt.Sprintf("%s, %d ch (%s)", s.SampleRate+"Hz", s.Channels, s.ChannelLayout)
-			case "subtitle":
-				lang := s.Tags["language"]
-				if lang == "" {
-					lang = "und"
-				}
-				title := s.Tags["title"]
-				if title != "" {
-					details = fmt.Sprintf("%s (%s)", lang, title)
-				} else {
-					details = lang
-				}
-			default:
-				details = s.CodecLongName
-			}
-
-			bitrateStr := s.BitRate
-			if bitrateStr != "" {
-				if br, err := strconv.ParseInt(bitrateStr, 10, 64); err == nil {
-					bitrateStr = fmt.Sprintf("%d kbps", br/1000)
-				}
-			} else {
-				bitrateStr = "-"
-			}
-
-			isDefault := "No"
-			if s.Disposition["default"] == 1 {
-				isDefault = "Yes"
-			}
-
-			rows = append(rows, []string{
-				idx,
-				codecType,
-				codecName,
-				details,
-				bitrateStr,
-				isDefault,
-			})
+			utils.PrintGeneric(string(encoded))
+			return
 		}
 
-		utils.PrintTable(headers, rows)
+		utils.PrintInfo(fmt.Sprintf("File: %s", summary.File))
+		utils.PrintInfo(fmt.Sprintf("Duration: %s | Size: %s | Bitrate: %s | Format: %s",
+			summary.Duration, summary.Size, summary.Bitrate, summary.Format))
+
+		rows := make([][]string, 0, len(summary.Streams))
+		for _, s := range summary.Streams {
+			isDefault := "No"
+			if s.Default {
+				isDefault = "Yes"
+			}
+			rows = append(rows, []string{strconv.Itoa(s.Index), s.Type, s.Codec, s.Details, s.Bitrate, isDefault})
+		}
+		utils.PrintTable([]string{"#", "Type", "Codec", "Details", "Bitrate", "Default"}, rows)
 	},
+}
+
+func init() {
+	inspectCmd.Flags().BoolVar(&inspectFlags.json, "json", false, "Emit the inspection as JSON instead of a table")
 }

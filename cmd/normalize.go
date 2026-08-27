@@ -38,4 +38,7 @@ func init() {
 	normalizeCmd.Flags().Var(newBoundedFloat(&normalizeFlags.peak, -1.5, -9.0, 0.0), "peak", "True peak ceiling in dBTP")
 	normalizeCmd.Flags().Var(newBoundedFloat(&normalizeFlags.lra, 11.0, 1.0, 50.0), "range", "Loudness range target")
 	normalizeCmd.Flags().Var(newEnum(&normalizeFlags.to, "", "mp3", "m4a", "aac", "flac", "wav", "ogg", "opus", "mp4", "mkv", "mov"), "to", "Output format (keeps the source container when unset)")
+
+	addOutputFlag(normalizeCmd)
+	addJobsFlag(normalizeCmd)
 }

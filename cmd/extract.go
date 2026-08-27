@@ -31,4 +31,7 @@ var extractCmd = &cobra.Command{
 func init() {
 	extractCmd.Flags().Var(newEnum(&extractFlags.to, "mp3", "mp3", "aac", "m4a", "flac", "opus", "wav"), "to", "Audio format")
 	extractCmd.Flags().Var(newBitrate(&extractFlags.bitrate), "bitrate", "Audio bitrate, e.g. 320k (format default when unset)")
+
+	addOutputFlag(extractCmd)
+	addJobsFlag(extractCmd)
 }

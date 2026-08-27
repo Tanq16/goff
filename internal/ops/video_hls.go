@@ -11,8 +11,15 @@ type HLSFormat string
 
 const (
 	HLSFormatFMP4   HLSFormat = "fmp4"
-	HLSFormatMPEGTS HLSFormat = "mpegts"
+	HLSFormatMPEGTS HLSFormat = "ts"
 )
+
+func (f HLSFormat) Suffix() string {
+	if f == HLSFormatMPEGTS {
+		return "hls-ts"
+	}
+	return "hls-fmp4"
+}
 
 type VideoHLSOpts struct {
 	Format          HLSFormat
@@ -20,7 +27,6 @@ type VideoHLSOpts struct {
 	AudioBitrate    string
 	CRF             int
 	GOPSize         int
-	CustomSuffix    string
 	OutputDir       string
 }
 
@@ -50,14 +56,7 @@ func BuildVideoHLS(inputPath string, p *probe.ProbeResult, opts VideoHLSOpts) (*
 		gop = 48
 	}
 
-	suffix := "hls"
-	if opts.CustomSuffix != "" {
-		suffix = opts.CustomSuffix
-	} else if fmtType == HLSFormatFMP4 {
-		suffix = "hls-fmp4"
-	} else {
-		suffix = "hls-ts"
-	}
+	suffix := fmtType.Suffix()
 
 	args := []string{
 		"-i", inputPath,

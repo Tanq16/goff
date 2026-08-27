@@ -5,4 +5,5 @@ type OpResult struct {
 	Suffix     string
 	TargetExt  string
 	OutputPath string
+	Cleanup    func()
 }

@@ -31,4 +31,7 @@ var remuxCmd = &cobra.Command{
 func init() {
 	remuxCmd.Flags().Var(newEnum(&remuxFlags.to, "mp4", "mp4", "mkv", "mov"), "to", "Target container")
 	remuxCmd.Flags().BoolVar(&remuxFlags.fixTimestamps, "fix-timestamps", false, "Shift negative start timestamps to zero")
+
+	addOutputFlag(remuxCmd)
+	addJobsFlag(remuxCmd)
 }
