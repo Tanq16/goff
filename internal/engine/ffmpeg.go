@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+
+	"github.com/rs/zerolog/log"
 )
 
 func RunFFmpeg(ctx context.Context, args []string, totalDurationSec float64, onProgress ProgressCallback) error {
@@ -33,11 +35,15 @@ func RunFFmpeg(ctx context.Context, args []string, totalDurationSec float64, onP
 	var wg sync.WaitGroup
 
 	wg.Go(func() {
-		_ = ScanProgress(stdoutPipe, totalDurationSec, onProgress)
+		if err := ScanProgress(stdoutPipe, totalDurationSec, onProgress); err != nil {
+			log.Error().Err(err).Msg("stopped reading ffmpeg progress")
+		}
 	})
 
 	wg.Go(func() {
-		_, _ = io.Copy(&stderrBuf, stderrPipe)
+		if _, err := io.Copy(&stderrBuf, stderrPipe); err != nil {
+			log.Error().Err(err).Msg("stopped reading ffmpeg stderr")
+		}
 	})
 
 	wg.Wait()
