@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
@@ -28,52 +27,33 @@ To layer audio tracks so they play at the same time, use mix.`,
   goff concat a.mp4 b.mp4 --reencode`,
 	Args: cobra.MinimumNArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
-		totalSec := checkConcatInputs(args)
+		var probes []*probe.ProbeResult
+		var totalSec float64
+		for _, in := range args {
+			p, err := probe.RunProbe(context.Background(), in)
+			if err != nil {
+				utils.PrintFatal(fmt.Sprintf("cannot read %s", filepath.Base(in)), err)
+			}
+			probes = append(probes, p)
+			totalSec += p.TotalDuration()
+		}
+		if err := ops.CheckConcatInputs(probes, concatFlags.reencode); err != nil {
+			utils.PrintFatal(err.Error(), nil)
+		}
 
-		res, listFile, err := ops.BuildMultiConcat(args, ops.MultiConcatOpts{
-			Inputs:   args,
+		res, err := ops.BuildMultiConcat(args, ops.MultiConcatOpts{
 			Reencode: concatFlags.reencode,
 		})
 		if err != nil {
 			utils.PrintFatal("failed to build concat arguments", err)
 		}
-		cleanup := func() {}
-		if listFile != "" {
-			cleanup = func() { os.Remove(listFile) }
-		}
 
-		runComposed("concat", args[0], res, totalSec, cleanup)
+		runComposed("concat", args[0], res, totalSec)
 	},
-}
-
-func checkConcatInputs(inputs []string) float64 {
-	var totalSec float64
-	withVideo, withAudio := 0, 0
-
-	for _, in := range inputs {
-		p, err := probe.RunProbe(context.Background(), in)
-		if err != nil {
-			utils.PrintFatal(fmt.Sprintf("cannot read %s", filepath.Base(in)), err)
-		}
-		totalSec += p.TotalDuration()
-		if p.IsVideo() {
-			withVideo++
-		}
-		if len(p.AudioStreams()) > 0 {
-			withAudio++
-		}
-	}
-
-	if withVideo != 0 && withVideo != len(inputs) {
-		utils.PrintFatal("concat needs every input to be the same kind; these mix video files with audio-only files", nil)
-	}
-	if concatFlags.reencode && (withVideo != len(inputs) || withAudio != len(inputs)) {
-		utils.PrintFatal("--reencode needs every input to carry both a video and an audio stream", nil)
-	}
-
-	return totalSec
 }
 
 func init() {
 	concatCmd.Flags().BoolVar(&concatFlags.reencode, "reencode", false, "Re-encode to a uniform stream instead of copying (needed for mismatched sources)")
+
+	addOutputFlag(concatCmd)
 }

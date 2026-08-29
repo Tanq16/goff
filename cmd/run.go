@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -28,18 +27,8 @@ type fileResult struct {
 	Err      error
 }
 
-var dimensionsPattern = regexp.MustCompile(`^[1-9][0-9]*x[1-9][0-9]*$`)
-
-func validScaleTarget(s string) bool {
-	switch strings.ToLower(s) {
-	case "4k", "2160p", "1440p", "2k", "1080p", "fhd", "720p", "hd", "480p", "sd":
-		return true
-	}
-	return dimensionsPattern.MatchString(strings.ToLower(s))
-}
-
 func requireInputs(args []string) {
-	if rootFlags.output != "" && len(args) > 1 {
+	if sharedFlags.output != "" && len(args) > 1 {
 		utils.PrintFatal("--output names a single destination; drop it to write one output per input", nil)
 	}
 }
@@ -50,8 +39,8 @@ var claimed struct {
 }
 
 func claimOutput(input, suffix, targetExt string) (string, error) {
-	if rootFlags.output != "" {
-		return rootFlags.output, nil
+	if sharedFlags.output != "" {
+		return sharedFlags.output, nil
 	}
 
 	claimed.Lock()
@@ -77,8 +66,8 @@ func claimOutput(input, suffix, targetExt string) (string, error) {
 }
 
 func claimOutputDir(input, suffix string) (string, error) {
-	if rootFlags.output != "" {
-		return rootFlags.output, nil
+	if sharedFlags.output != "" {
+		return sharedFlags.output, nil
 	}
 
 	dir := filepath.Dir(input)
@@ -135,7 +124,7 @@ func encodeWithProgress(ctx context.Context, verb string, label string, args []s
 	var bar sync.WaitGroup
 
 	bar.Go(func() {
-		t := time.NewTicker(250 * time.Millisecond)
+		t := time.NewTicker(1 * time.Second)
 		defer t.Stop()
 		firstTick := true
 		for {
@@ -198,6 +187,9 @@ func runSingle(verb string, input string, build buildFunc) {
 	label := filepath.Base(input)
 	elapsed, err := encodeWithProgress(ctx, verb, label, append(res.Args, outPath), p.TotalDuration())
 	if err != nil {
+		if res.Cleanup != nil {
+			res.Cleanup()
+		}
 		utils.PrintFatal(fmt.Sprintf("%s failed for %s", verb, label), err)
 	}
 
@@ -206,9 +198,10 @@ func runSingle(verb string, input string, build buildFunc) {
 		probe.FormatBytes(p.Format.Size()), probe.FormatBytes(fileSize(outPath))))
 }
 
-func runComposed(verb string, namingInput string, res *ops.OpResult, totalSec float64, cleanup func()) {
-	if cleanup == nil {
-		cleanup = func() {}
+func runComposed(verb string, namingInput string, res *ops.OpResult, totalSec float64) {
+	cleanup := func() {}
+	if res.Cleanup != nil {
+		cleanup = res.Cleanup
 	}
 
 	outPath, err := claimOutput(namingInput, res.Suffix, res.TargetExt)
@@ -232,7 +225,7 @@ func runComposed(verb string, namingInput string, res *ops.OpResult, totalSec fl
 }
 
 func runMany(verb string, files []string, build buildFunc) {
-	workers := max(rootFlags.jobs, 1)
+	workers := max(sharedFlags.jobs, 1)
 	utils.PrintRunning(fmt.Sprintf("%s: %d files, %d workers", verb, len(files), workers))
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -269,6 +262,9 @@ func runMany(verb string, files []string, build buildFunc) {
 				return
 			}
 			if err := engine.RunFFmpeg(ctx, append(res.Args, outPath), p.TotalDuration(), nil); err != nil {
+				if res.Cleanup != nil {
+					res.Cleanup()
+				}
 				record(fileResult{Input: input, OrigSize: p.Format.Size(), Duration: time.Since(start), Err: err})
 				return
 			}

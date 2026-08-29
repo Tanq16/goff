@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -14,12 +14,6 @@ import (
 
 var AppVersion = "dev-build"
 var debugFlag bool
-var forAIFlag bool
-
-var rootFlags struct {
-	output string
-	jobs   int
-}
 
 var rootCmd = &cobra.Command{
 	Use:     "goff",
@@ -40,27 +34,21 @@ same time.`,
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
 func setupLogs() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	output := zerolog.ConsoleWriter{
-		Out:        os.Stdout,
-		TimeFormat: time.DateTime,
-		NoColor:    false,
+	var out io.Writer = os.Stdout
+	if utils.StdoutIsTerminal {
+		out = zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.DateTime}
 	}
-	log.Logger = zerolog.New(output).With().Timestamp().Logger()
+	log.Logger = zerolog.New(out).With().Timestamp().Logger()
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	if debugFlag {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 		utils.GlobalDebugFlag = true
-	}
-	if forAIFlag {
-		utils.GlobalForAIFlag = true
-		zerolog.SetGlobalLevel(zerolog.Disabled)
 	}
 }
 
@@ -69,11 +57,6 @@ func init() {
 	rootCmd.SetHelpCommandGroupID("info")
 
 	rootCmd.PersistentFlags().BoolVar(&debugFlag, "debug", false, "Enable debug logging")
-	rootCmd.PersistentFlags().BoolVar(&forAIFlag, "for-ai", false, "AI-friendly output (plain text, piped input)")
-	rootCmd.MarkFlagsMutuallyExclusive("debug", "for-ai")
-
-	rootCmd.PersistentFlags().StringVarP(&rootFlags.output, "output", "o", "", "Explicit output path, overwritten if it exists (single input only)")
-	rootCmd.PersistentFlags().IntVarP(&rootFlags.jobs, "jobs", "j", 2, "Concurrent encodes when several inputs are given")
 
 	cobra.OnInitialize(setupLogs)
 
@@ -86,7 +69,7 @@ func init() {
 	)
 
 	rootCmd.AddCommand(
-		compressCmd, remuxCmd, hlsCmd, rotateCmd, scaleCmd, speedCmd, cropCmd, muteCmd, watermarkCmd,
+		compressCmd, remuxCmd, hlsCmd, transformCmd, watermarkCmd,
 		extractCmd, convertCmd, normalizeCmd, mixCmd,
 		trimCmd, gifCmd,
 		concatCmd, muxCmd, subsCmd,

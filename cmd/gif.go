@@ -41,4 +41,7 @@ func init() {
 	gifCmd.Flags().Var(newBoundedInt(&gifFlags.fps, 15, 1, 60), "fps", "Frames per second")
 	gifCmd.Flags().Var(newTimestamp(&gifFlags.start), "start", "Start position, e.g. 00:00:05")
 	gifCmd.Flags().Var(newTimestamp(&gifFlags.duration), "duration", "Length to capture from --start, e.g. 5")
+
+	addOutputFlag(gifCmd)
+	addJobsFlag(gifCmd)
 }

@@ -7,7 +7,24 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/spf13/cobra"
+
+	"github.com/Tanq16/goff/internal/ops"
 )
+
+var sharedFlags struct {
+	output string
+	jobs   int
+}
+
+func addOutputFlag(cmd *cobra.Command) {
+	cmd.Flags().StringVarP(&sharedFlags.output, "output", "o", "", "Explicit output path, overwritten if it exists (single input only)")
+}
+
+func addJobsFlag(cmd *cobra.Command) {
+	cmd.Flags().IntVarP(&sharedFlags.jobs, "jobs", "j", 2, "Concurrent encodes when several inputs are given")
+}
 
 type enumFlag struct {
 	target  *string
@@ -43,8 +60,8 @@ func newScale(target *string) *scaleFlag {
 func (s *scaleFlag) String() string { return *s.target }
 
 func (s *scaleFlag) Set(v string) error {
-	if !validScaleTarget(v) {
-		return fmt.Errorf("must be a tier (2160p, 1440p, 1080p, 720p, 480p) or WxH like 1280x720")
+	if !ops.ValidScaleTarget(v) {
+		return fmt.Errorf("must be a tier (%s) or WxH like 1280x720", strings.Join(ops.ScaleAliases(), ", "))
 	}
 	*s.target = strings.ToLower(v)
 	return nil
@@ -72,7 +89,10 @@ func (b *boundedFloat) Set(v string) error {
 	if err != nil || math.IsNaN(f) {
 		return fmt.Errorf("must be a number")
 	}
-	*b.target = min(max(f, b.min), b.max)
+	if f < b.min || f > b.max {
+		return fmt.Errorf("must be between %s and %s", formatFloat(b.min), formatFloat(b.max))
+	}
+	*b.target = f
 	return nil
 }
 
@@ -96,11 +116,37 @@ func (b *boundedInt) Set(v string) error {
 	if err != nil {
 		return fmt.Errorf("must be a whole number")
 	}
-	*b.target = min(max(n, b.min), b.max)
+	if n < b.min || n > b.max {
+		return fmt.Errorf("must be between %d and %d", b.min, b.max)
+	}
+	*b.target = n
 	return nil
 }
 
 func (b *boundedInt) Type() string { return strconv.Itoa(b.min) + ".." + strconv.Itoa(b.max) }
+
+type sizeFlag struct {
+	raw    *string
+	budget *float64
+}
+
+func newSize(raw *string, budget *float64) *sizeFlag {
+	return &sizeFlag{raw: raw, budget: budget}
+}
+
+func (s *sizeFlag) String() string { return *s.raw }
+
+func (s *sizeFlag) Set(v string) error {
+	budget, err := ops.ParseSizeBudget(v)
+	if err != nil {
+		return err
+	}
+	*s.raw = strings.ToLower(strings.TrimSpace(v))
+	*s.budget = budget
+	return nil
+}
+
+func (s *sizeFlag) Type() string { return "size" }
 
 var bitratePattern = regexp.MustCompile(`^[1-9][0-9]*k?$`)
 

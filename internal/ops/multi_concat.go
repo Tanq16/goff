@@ -5,16 +5,36 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/Tanq16/goff/internal/probe"
 )
 
 type MultiConcatOpts struct {
-	Inputs   []string
 	Reencode bool
 }
 
-func BuildMultiConcat(inputs []string, opts MultiConcatOpts) (*OpResult, string, error) {
+func CheckConcatInputs(probes []*probe.ProbeResult, reencode bool) error {
+	withVideo, withAudio := 0, 0
+	for _, p := range probes {
+		if p.IsVideo() {
+			withVideo++
+		}
+		if len(p.AudioStreams()) > 0 {
+			withAudio++
+		}
+	}
+	if withVideo != 0 && withVideo != len(probes) {
+		return fmt.Errorf("concat needs every input to be the same kind; these mix video files with audio-only files")
+	}
+	if reencode && (withVideo != len(probes) || withAudio != len(probes)) {
+		return fmt.Errorf("--reencode needs every input to carry both a video and an audio stream")
+	}
+	return nil
+}
+
+func BuildMultiConcat(inputs []string, opts MultiConcatOpts) (*OpResult, error) {
 	if len(inputs) < 2 {
-		return nil, "", fmt.Errorf("concatenation requires at least 2 input files")
+		return nil, fmt.Errorf("concatenation requires at least 2 input files")
 	}
 
 	ext := strings.TrimPrefix(filepath.Ext(inputs[0]), ".")
@@ -25,7 +45,7 @@ func BuildMultiConcat(inputs []string, opts MultiConcatOpts) (*OpResult, string,
 	if !opts.Reencode {
 		tmpList, err := os.CreateTemp("", "goff_concat_*.txt")
 		if err != nil {
-			return nil, "", fmt.Errorf("failed to create temp concat list: %w", err)
+			return nil, fmt.Errorf("failed to create temp concat list: %w", err)
 		}
 		var content strings.Builder
 		for _, in := range inputs {
@@ -38,7 +58,8 @@ func BuildMultiConcat(inputs []string, opts MultiConcatOpts) (*OpResult, string,
 		}
 		if _, err := tmpList.WriteString(content.String()); err != nil {
 			tmpList.Close()
-			return nil, "", err
+			os.Remove(tmpList.Name())
+			return nil, err
 		}
 		tmpList.Close()
 
@@ -52,11 +73,13 @@ func BuildMultiConcat(inputs []string, opts MultiConcatOpts) (*OpResult, string,
 			args = append(args, "-movflags", "+faststart")
 		}
 
+		listPath := tmpList.Name()
 		return &OpResult{
 			Args:      args,
 			Suffix:    "merged",
 			TargetExt: ext,
-		}, tmpList.Name(), nil
+			Cleanup:   func() { os.Remove(listPath) },
+		}, nil
 	}
 
 	var args []string
@@ -86,5 +109,5 @@ func BuildMultiConcat(inputs []string, opts MultiConcatOpts) (*OpResult, string,
 		Args:      args,
 		Suffix:    "merged",
 		TargetExt: "mp4",
-	}, "", nil
+	}, nil
 }

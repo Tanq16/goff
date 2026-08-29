@@ -2,10 +2,29 @@ package ops
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/Tanq16/goff/internal/probe"
 )
+
+func ParseSizeBudget(s string) (float64, error) {
+	trimmed := strings.TrimSpace(strings.ToLower(s))
+	trimmed = strings.TrimSuffix(trimmed, "b")
+	trimmed = strings.TrimSuffix(trimmed, "m")
+	trimmed = strings.TrimSpace(trimmed)
+	if trimmed == "" {
+		return 0, fmt.Errorf("must look like 25MB")
+	}
+	limit, err := strconv.ParseFloat(trimmed, 64)
+	if err != nil {
+		return 0, fmt.Errorf("must look like 25MB")
+	}
+	if limit <= 0 {
+		return 0, fmt.Errorf("must be greater than zero")
+	}
+	return limit - max(limit*0.02, 0.5), nil
+}
 
 type VideoOptimizeOpts struct {
 	Codec        string

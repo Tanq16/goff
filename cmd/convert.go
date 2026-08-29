@@ -38,4 +38,7 @@ func init() {
 	convertCmd.Flags().Var(newBitrate(&convertFlags.bitrate), "bitrate", "Audio bitrate, e.g. 256k (format default when unset)")
 	convertCmd.Flags().Var(newBoundedInt(&convertFlags.rate, 0, 8000, 192000), "rate", "Sample rate in Hz, e.g. 48000 (source rate when unset)")
 	convertCmd.Flags().Var(newBoundedInt(&convertFlags.channels, 0, 1, 8), "channels", "Channel count, 2 downmixes to stereo (source layout when unset)")
+
+	addOutputFlag(convertCmd)
+	addJobsFlag(convertCmd)
 }
