@@ -7,12 +7,13 @@ import (
 )
 
 type Summary struct {
-	File     string          `json:"file"`
-	Duration string          `json:"duration"`
-	Size     string          `json:"size"`
-	Bitrate  string          `json:"bitrate"`
-	Format   string          `json:"format"`
-	Streams  []StreamSummary `json:"streams"`
+	File        string          `json:"file"`
+	Duration    string          `json:"duration"`
+	Size        string          `json:"size"`
+	Bitrate     string          `json:"bitrate"`
+	Format      string          `json:"format"`
+	Streams     []StreamSummary `json:"streams"`
+	Conformance *Conformance    `json:"conformance,omitempty"`
 }
 
 type StreamSummary struct {
