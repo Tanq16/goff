@@ -16,13 +16,13 @@ It exists so you stop looking up filter syntax for the same dozen jobs. It is no
 
 | Category | Commands | Description |
 |----------|----------|-------------|
-| **Compression** | `compress` | H.265 / AV1 / H.264 re-encoding, height caps, target file size, lossless mode, automatic HDR tone-mapping, playback-compatibility normalization |
+| **Compression** | `compress` | H.265 / AV1 / H.264 re-encoding, height caps, target file size, lossless mode, automatic HDR tone-mapping, and playback normalization that keeps audio locked to video |
 | **Containers** | `remux`, `hls` | Lossless container switching, VoD HLS packaging as fMP4 or MPEG-TS |
 | **Audio** | `extract`, `convert`, `normalize`, `mix` | Audio extraction from video, format transcoding, EBU R128 loudness normalization, layering tracks into one |
 | **Transforms** | `transform` | Rotation and flips, resolution tiers, pitch-corrected speed, 9:16 vertical crop, audio removal, composed into one encode |
 | **Segments** | `trim`, `gif` | Time-range cuts, 2-pass palettegen GIF and animated WebP |
 | **Multi-file** | `concat`, `mux`, `subs`, `watermark` | Clip joining, external audio muxing, subtitle embedding, logo overlays |
-| **Inspection** | `inspect` | Stream table with codecs, resolutions, per-stream and container bitrates, and HDR transfer characteristics |
+| **Inspection** | `inspect` | Stream table with codecs, resolutions, per-stream and container bitrates, and HDR transfer characteristics, plus a packet-level browser playability check |
 
 ## Install
 
@@ -71,14 +71,15 @@ goff compress *.mkv -j 4
 ### Compress
 
 ```bash
-goff compress input.mkv                       # H.265, 1080p cap, faststart
+goff compress input.mkv                       # H.265, 1080p cap, 8-bit, CFR, 48kHz stereo, faststart
 goff compress input.mkv --codec av1 --crf 28
 goff compress input.mp4 --size 25MB           # bitrate solved to land under 25MB
 goff compress input.mkv --height 720
 goff compress master.mov --lossless           # no video quality loss, source resolution kept
-goff compress input.mkv --compat              # first tracks, 8-bit, CFR, 48kHz stereo
+goff compress input.mkv --keep-10bit --keep-hifi-audio   # for VLC rather than a browser
+goff compress drifting.mp4 --copy-video       # repair audio sync, video untouched
 goff compress input.mkv --subs all            # carry every subtitle track into the MP4
-goff compress input.mkv --preset slow --audio-bitrate 192k
+goff compress input.mkv --preset slow --audio-bitrate 192k --audio-rate 44100
 ```
 
 ### Containers and streaming
@@ -149,7 +150,8 @@ goff watermark video.mp4 --logo logo.png --position bottom-right --width 12 --op
 
 ```bash
 goff inspect movie.mkv
-goff inspect movie.mkv --json    # the same reading as a data contract
+goff inspect movie.mkv --json     # the same reading as a data contract
+goff inspect movie.mp4 --check    # timeline gaps, A/V drift, browser playability
 ```
 
 ### Scripting and agents
@@ -159,6 +161,7 @@ Styled output is a property of the destination rather than a flag: piping any co
 ```bash
 goff compress video.mp4 --debug
 goff inspect video.mp4 --json | jq '.streams[] | select(.type == "audio")'
+goff inspect video.mp4 --json --check | jq '.conformance.browserSafe'
 ```
 
 ## Notes
@@ -169,11 +172,14 @@ goff inspect video.mp4 --json | jq '.streams[] | select(.type == "audio")'
 - **Audio modes**: `mux --audio-mode` decides what happens to the audio a video already has. `mix` layers it with the new tracks into one, `replace` drops it, and `separate` keeps every track selectable.
 - **HLS layout**: each packaged video gets its own directory holding `index.m3u8` and the segments, so two packaged videos never share a segment name. fMP4 packaging adds an `init.mp4` next to them.
 - **Size targets**: `--size` holds back headroom below the number you give, so a 25MB budget targets 24.5MB and the muxed result stays under the limit.
-- **HDR tone-mapping**: HDR10 and HLG sources are tone-mapped to 8-bit SDR with the Hable curve during `compress`, which takes priority over `--height` for those inputs.
-- **Lossless compression**: `compress --lossless` keeps the source resolution and skips tone-mapping, since both are lossy, and it re-encodes audio to AAC like every other `compress` run. It cannot be combined with `--crf`, `--size`, or `--height`.
-- **Playback compatibility**: `compress --compat` normalizes a run for players that reject anything unusual. It takes the first video and audio track instead of letting FFmpeg choose, forces 8-bit color and a constant frame rate, and downmixes audio to 48kHz stereo. It cannot be combined with `--lossless`.
-- **Subtitles**: `compress --subs all` maps every subtitle track and converts it to `mov_text`, which covers text subtitles and fails on image ones such as PGS. `none` drops them, and the default `auto` leaves the choice to FFmpeg.
+- **HDR tone-mapping**: HDR10 and HLG sources are tone-mapped to 8-bit SDR with the Hable curve during `compress`, which takes priority over `--height` for those inputs. `--keep-10bit` skips it and keeps the source grade.
+- **Lossless compression**: `compress --lossless` keeps the source resolution, bit depth, and channel layout, and skips tone-mapping, since all of those are lossy. Audio is still re-encoded to AAC like every other `compress` run. It cannot be combined with `--crf`, `--size`, or `--height`.
+- **Playback normalization**: every `compress` run takes the first video and audio track, forces 8-bit color and a constant frame rate, downmixes audio to stereo at 48kHz, tags H.265 as `hvc1` so Safari and the Apple media stack accept it, and writes a faststart MP4. `--keep-10bit` and `--keep-hifi-audio` opt out of the first two, and `--audio-rate` sets the third.
+- **Audio sync**: `compress` fills holes in the source audio timeline so the output holds exactly as much audio as its timeline claims. Without that, forcing a constant frame rate lengthens the video while leaving the audio short, and the two drift apart by however much the source was missing. VLC hides the problem by honoring the timestamps; a browser playing the file directly does not.
+- **Repairing a file**: `compress --copy-video` re-encodes only the audio and copies the video stream through, which fixes drift and the `hvc1` tag in seconds rather than a full encode. It cannot be combined with any video-encoding flag.
+- **Subtitles**: `compress --subs all` maps every subtitle track and converts it to `mov_text`, which covers text subtitles and fails on image ones such as PGS. The default `none` drops them, since browsers do not render a subtitle track carried inside an MP4.
 - **Timestamp shifting**: `remux --fix-timestamps` moves a negative start time to zero, which matters for captures whose audio and video begin at different points.
 - **Container bitrate**: `inspect` prints the container bitrate on its summary line, deriving it from size over duration when FFprobe reports none. A derived figure can differ slightly from a reported one, and a file FFprobe gives no duration for shows `-`.
-- **Out-of-range numbers**: a numeric flag given a value past its range is rejected before any work starts. `--help` prints the accepted range as the flag's type, such as `--crf 1..63`. H.265 caps at 51, so a `--crf` above that lands at 51 when `--codec hevc` is in play.
+- **Conformance check**: `inspect --check` reads every packet to report how much real content each stream holds against the timeline it declares, then lists what would stop a browser playing the file. It costs a fraction of a second on a feature-length file, and is off by default because the plain reading needs only the header.
+- **Out-of-range numbers**: a numeric flag given a value past its range is rejected before any work starts. `--help` prints the accepted range as the flag's type, such as `--crf 1..63`. H.265 and H.264 both cap at 51, so a `--crf` above that lands at 51 for either codec, while AV1 uses the full range.
 - **Failure detail**: a failed encode reports the FFmpeg error only under `--debug`, which keeps a wall of filter-graph text out of normal runs.
