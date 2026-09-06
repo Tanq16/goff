@@ -13,7 +13,8 @@ import (
 )
 
 var inspectFlags struct {
-	json bool
+	json  bool
+	check bool
 }
 
 var inspectCmd = &cobra.Command{
@@ -21,16 +22,27 @@ var inspectCmd = &cobra.Command{
 	GroupID: "info",
 	Short:   "Inspect media streams, codecs, bitrates, and HDR parameters",
 	Example: `  goff inspect movie.mkv
-  goff inspect movie.mkv --json`,
+  goff inspect movie.mkv --json
+  goff inspect movie.mp4 --check`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		filePath := args[0]
-		p, err := probe.RunProbe(context.Background(), filePath)
+		ctx := context.Background()
+
+		p, err := probe.RunProbe(ctx, filePath)
 		if err != nil {
 			utils.PrintFatal(fmt.Sprintf("failed to probe %q", filePath), err)
 		}
 
 		summary := p.Summarize(filePath)
+
+		if inspectFlags.check {
+			conformance, err := probe.Conform(ctx, filePath, p)
+			if err != nil {
+				utils.PrintFatal(fmt.Sprintf("failed to check %q", filePath), err)
+			}
+			summary.Conformance = conformance
+		}
 
 		if inspectFlags.json {
 			encoded, err := json.MarshalIndent(summary, "", "  ")
@@ -54,9 +66,30 @@ var inspectCmd = &cobra.Command{
 			rows = append(rows, []string{strconv.Itoa(s.Index), s.Type, s.Codec, s.Details, s.Bitrate, isDefault})
 		}
 		utils.PrintTable([]string{"#", "Type", "Codec", "Details", "Bitrate", "Default"}, rows)
+
+		if summary.Conformance != nil {
+			printConformance(summary.Conformance)
+		}
 	},
+}
+
+func printConformance(c *probe.Conformance) {
+	utils.PrintInfo(fmt.Sprintf("Content: video %.3fs | audio %.3fs | drift %+.3fs",
+		c.VideoContentSeconds, c.AudioContentSeconds, c.DriftSeconds))
+	utils.PrintInfo(fmt.Sprintf("Timeline gaps: video %d (%.3fs) | audio %d (%.3fs)",
+		c.VideoGapCount, c.VideoGapSeconds, c.AudioGapCount, c.AudioGapSeconds))
+
+	if c.BrowserSafe {
+		utils.PrintSuccess("Browser-safe")
+		return
+	}
+	utils.PrintWarn("Not browser-safe", nil)
+	for _, issue := range c.Issues {
+		utils.PrintIndentedWarn(issue, nil)
+	}
 }
 
 func init() {
 	inspectCmd.Flags().BoolVar(&inspectFlags.json, "json", false, "Emit the inspection as JSON instead of a table")
+	inspectCmd.Flags().BoolVar(&inspectFlags.check, "check", false, "Scan every packet and report timeline gaps, A/V drift, and browser playability")
 }
