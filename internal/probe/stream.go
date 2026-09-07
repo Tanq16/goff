@@ -36,6 +36,16 @@ func (p *ProbeResult) SubtitleStreams() []StreamInfo {
 	return list
 }
 
+func (p *ProbeResult) AttachmentStreams() []StreamInfo {
+	var list []StreamInfo
+	for _, s := range p.Streams {
+		if strings.EqualFold(s.CodecType, "attachment") {
+			list = append(list, s)
+		}
+	}
+	return list
+}
+
 func (p *ProbeResult) PrimaryVideoStream() *StreamInfo {
 	videos := p.VideoStreams()
 	if len(videos) == 0 {

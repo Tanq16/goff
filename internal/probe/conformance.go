@@ -176,6 +176,17 @@ func (p *ProbeResult) browserIssues(c *Conformance) []string {
 		}
 	}
 
+	audios := p.AudioStreams()
+	for i, a := range audios {
+		if a.Disposition["default"] != 1 {
+			continue
+		}
+		if i > 0 {
+			issues = append(issues, fmt.Sprintf("audio track %d carries the default flag while track %d comes first, so Chrome and Firefox play different tracks", a.Index, audios[0].Index))
+		}
+		break
+	}
+
 	if audio := p.PrimaryAudioStream(); audio != nil {
 		if !strings.EqualFold(audio.CodecName, "aac") {
 			issues = append(issues, fmt.Sprintf("audio codec %s is not AAC", audio.CodecName))

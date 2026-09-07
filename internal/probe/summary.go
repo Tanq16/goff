@@ -1,6 +1,7 @@
 package probe
 
 import (
+	"cmp"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -17,12 +18,15 @@ type Summary struct {
 }
 
 type StreamSummary struct {
-	Index   int    `json:"index"`
-	Type    string `json:"type"`
-	Codec   string `json:"codec"`
-	Details string `json:"details"`
-	Bitrate string `json:"bitrate"`
-	Default bool   `json:"default"`
+	Index    int    `json:"index"`
+	Type     string `json:"type"`
+	Codec    string `json:"codec"`
+	Details  string `json:"details"`
+	Bitrate  string `json:"bitrate"`
+	Language string `json:"language"`
+	Title    string `json:"title"`
+	Default  bool   `json:"default"`
+	Forced   bool   `json:"forced"`
 }
 
 func (p *ProbeResult) Summarize(path string) Summary {
@@ -54,16 +58,9 @@ func (p *ProbeResult) summarizeStream(s StreamInfo) StreamSummary {
 		}
 		details = fmt.Sprintf("%dx%d @ %.2ffps, %s%s", s.Width, s.Height, ParseFPS(s.AvgFrameRate), s.PixFmt, hdrTag)
 	case "audio":
-		details = fmt.Sprintf("%sHz, %d ch (%s)", s.SampleRate, s.Channels, s.ChannelLayout)
+		details = fmt.Sprintf("%sHz, %d ch (%s), %s", s.SampleRate, s.Channels, s.ChannelLayout, trackLabel(s))
 	case "subtitle":
-		lang := s.Tags["language"]
-		if lang == "" {
-			lang = "und"
-		}
-		details = lang
-		if title := s.Tags["title"]; title != "" {
-			details = fmt.Sprintf("%s (%s)", lang, title)
-		}
+		details = trackLabel(s)
 	default:
 		details = s.CodecLongName
 	}
@@ -77,11 +74,25 @@ func (p *ProbeResult) summarizeStream(s StreamInfo) StreamSummary {
 	}
 
 	return StreamSummary{
-		Index:   s.Index,
-		Type:    s.CodecType,
-		Codec:   codec,
-		Details: details,
-		Bitrate: bitrate,
-		Default: s.Disposition["default"] == 1,
+		Index:    s.Index,
+		Type:     s.CodecType,
+		Codec:    codec,
+		Details:  details,
+		Bitrate:  bitrate,
+		Language: s.Language(),
+		Title:    s.Title(),
+		Default:  s.Disposition["default"] == 1,
+		Forced:   s.Disposition["forced"] == 1,
 	}
+}
+
+func trackLabel(s StreamInfo) string {
+	label := cmp.Or(s.Language(), "und")
+	if title := s.Title(); title != "" {
+		label = fmt.Sprintf("%s (%s)", label, title)
+	}
+	if s.Disposition["forced"] == 1 {
+		label += ", forced"
+	}
+	return label
 }
