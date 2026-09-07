@@ -241,18 +241,27 @@ func parseTimestamp(v string) (float64, error) {
 }
 
 type timestampFlag struct {
-	target *string
+	target  *string
+	seconds *float64
 }
 
 func newTimestamp(target *string) *timestampFlag { return &timestampFlag{target: target} }
 
+func newTimestampSeconds(target *string, seconds *float64) *timestampFlag {
+	return &timestampFlag{target: target, seconds: seconds}
+}
+
 func (t *timestampFlag) String() string { return *t.target }
 
 func (t *timestampFlag) Set(v string) error {
-	if _, err := parseTimestamp(v); err != nil {
+	seconds, err := parseTimestamp(v)
+	if err != nil {
 		return err
 	}
 	*t.target = v
+	if t.seconds != nil {
+		*t.seconds = seconds
+	}
 	return nil
 }
 
