@@ -14,6 +14,9 @@ const DriftToleranceSeconds = 0.1
 
 type Conformance struct {
 	CodecTag            string   `json:"codecTag"`
+	VideoStartSeconds   float64  `json:"videoStartSeconds"`
+	AudioStartSeconds   float64  `json:"audioStartSeconds"`
+	StartOffsetSeconds  float64  `json:"startOffsetSeconds"`
 	VideoContentSeconds float64  `json:"videoContentSeconds"`
 	AudioContentSeconds float64  `json:"audioContentSeconds"`
 	DriftSeconds        float64  `json:"driftSeconds"`
@@ -26,6 +29,7 @@ type Conformance struct {
 }
 
 type timeline struct {
+	Start      float64
 	Content    float64
 	GapCount   int
 	GapSeconds float64
@@ -95,6 +99,7 @@ func measure(stamps []int64, expected, timeBase float64) timeline {
 	if len(stamps) < 2 || expected <= 0 || timeBase <= 0 {
 		return t
 	}
+	t.Start = float64(stamps[0]) * timeBase
 	t.Content = float64(len(stamps)) * expected * timeBase
 	for i := range len(stamps) - 1 {
 		delta := float64(stamps[i+1] - stamps[i])
@@ -121,6 +126,7 @@ func Conform(ctx context.Context, filePath string, p *ProbeResult) (*Conformance
 			expected = 1 / (fps * timeBase)
 		}
 		t := measure(stamps, expected, timeBase)
+		c.VideoStartSeconds = t.Start
 		c.VideoContentSeconds = t.Content
 		c.VideoGapCount = t.GapCount
 		c.VideoGapSeconds = t.GapSeconds
@@ -132,6 +138,7 @@ func Conform(ctx context.Context, filePath string, p *ProbeResult) (*Conformance
 			return nil, err
 		}
 		t := measure(stamps, modalDelta(stamps), audio.TimeBaseSeconds())
+		c.AudioStartSeconds = t.Start
 		c.AudioContentSeconds = t.Content
 		c.AudioGapCount = t.GapCount
 		c.AudioGapSeconds = t.GapSeconds
@@ -139,6 +146,7 @@ func Conform(ctx context.Context, filePath string, p *ProbeResult) (*Conformance
 
 	if c.VideoContentSeconds > 0 && c.AudioContentSeconds > 0 {
 		c.DriftSeconds = c.VideoContentSeconds - c.AudioContentSeconds
+		c.StartOffsetSeconds = c.VideoStartSeconds - c.AudioStartSeconds
 	}
 
 	c.Issues = p.browserIssues(c)
@@ -201,6 +209,10 @@ func (p *ProbeResult) browserIssues(c *Conformance) []string {
 
 	if drift := c.DriftSeconds; drift > DriftToleranceSeconds || drift < -DriftToleranceSeconds {
 		issues = append(issues, fmt.Sprintf("video and audio content differ by %.3fs", drift))
+	}
+
+	if offset := c.StartOffsetSeconds; offset > DriftToleranceSeconds || offset < -DriftToleranceSeconds {
+		issues = append(issues, fmt.Sprintf("video and audio start %+.3fs apart, so playback is offset from the first frame", offset))
 	}
 
 	return issues

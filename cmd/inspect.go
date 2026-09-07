@@ -76,6 +76,8 @@ var inspectCmd = &cobra.Command{
 func printConformance(c *probe.Conformance) {
 	utils.PrintInfo(fmt.Sprintf("Content: video %.3fs | audio %.3fs | drift %+.3fs",
 		c.VideoContentSeconds, c.AudioContentSeconds, c.DriftSeconds))
+	utils.PrintInfo(fmt.Sprintf("Start: video %.3fs | audio %.3fs | offset %+.3fs",
+		c.VideoStartSeconds, c.AudioStartSeconds, c.StartOffsetSeconds))
 	utils.PrintInfo(fmt.Sprintf("Timeline gaps: video %d (%.3fs) | audio %d (%.3fs)",
 		c.VideoGapCount, c.VideoGapSeconds, c.AudioGapCount, c.AudioGapSeconds))
 
