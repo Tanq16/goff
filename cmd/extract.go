@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tanq16/goff/internal/ops"
 	"github.com/Tanq16/goff/internal/probe"
+	"github.com/Tanq16/goff/utils"
 )
 
 var extractFlags struct {
@@ -28,6 +29,8 @@ var extractCmd = &cobra.Command{
   goff extract film.mkv --to vtt`,
 	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		rejectInertExtractFlags(cmd)
+
 		runFiles("extract", args, func(input string, p *probe.ProbeResult) (*ops.OpResult, error) {
 			streams, ext, err := extractStreams(input, p)
 			if err != nil {
@@ -55,6 +58,18 @@ var extractCmd = &cobra.Command{
 			})
 		})
 	},
+}
+
+func rejectInertExtractFlags(cmd *cobra.Command) {
+	inert := []string{"sub-track"}
+	if _, subtitles := ops.ExtractFormat(extractFlags.to); subtitles {
+		inert = []string{"bitrate", "rate", "channels", "audio-track"}
+	}
+	for _, name := range inert {
+		if cmd.Flags().Changed(name) {
+			utils.PrintFatal(fmt.Sprintf("--%s does not apply to --to %s", name, extractFlags.to), nil)
+		}
+	}
 }
 
 func extractStreams(input string, p *probe.ProbeResult) ([]probe.StreamInfo, string, error) {
