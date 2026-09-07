@@ -19,7 +19,8 @@ var compressFlags struct {
 	keep10Bit     bool
 	keepHiFiAudio bool
 	copyVideo     bool
-	subs          string
+	audioTracks   probe.TrackSelector
+	subTracks     probe.TrackSelector
 	sizeBudgetMB  float64
 }
 
@@ -32,7 +33,8 @@ var compressCmd = &cobra.Command{
   goff compress clip.mp4 --size 25MB
   goff compress master.mov --lossless
   goff compress movie.mkv --keep-10bit --keep-hifi-audio
-  goff compress drifting.mp4 --copy-video`,
+  goff compress drifting.mp4 --copy-video
+  goff compress rip.mkv --audio-track eng --sub-track none`,
 	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		runFiles("compress", args, func(input string, p *probe.ProbeResult) (*ops.OpResult, error) {
@@ -49,7 +51,8 @@ var compressCmd = &cobra.Command{
 				Keep10Bit:     compressFlags.keep10Bit,
 				KeepHiFiAudio: compressFlags.keepHiFiAudio,
 				CopyVideo:     compressFlags.copyVideo,
-				Subs:          compressFlags.subs,
+				AudioTracks:   compressFlags.audioTracks,
+				SubTracks:     compressFlags.subTracks,
 			})
 		})
 	},
@@ -67,7 +70,8 @@ func init() {
 	compressCmd.Flags().BoolVar(&compressFlags.keep10Bit, "keep-10bit", false, "Keep the source bit depth and skip HDR tone-mapping")
 	compressCmd.Flags().BoolVar(&compressFlags.keepHiFiAudio, "keep-hifi-audio", false, "Keep the source channel layout instead of downmixing to stereo")
 	compressCmd.Flags().BoolVar(&compressFlags.copyVideo, "copy-video", false, "Copy the video stream untouched and re-encode only audio, to repair sync in seconds")
-	compressCmd.Flags().Var(newEnum(&compressFlags.subs, "none", "none", "all"), "subs", "Subtitle handling")
+	compressCmd.Flags().Var(newTrack(&compressFlags.audioTracks, probe.AllTracks()), "audio-track", "Audio tracks to keep, by stream index or language")
+	compressCmd.Flags().Var(newTrack(&compressFlags.subTracks, probe.AllTracks()), "sub-track", "Subtitle tracks to keep, by stream index or language")
 
 	compressCmd.MarkFlagsMutuallyExclusive("crf", "size", "lossless")
 	compressCmd.MarkFlagsMutuallyExclusive("height", "lossless")

@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Tanq16/goff/internal/ops"
+	"github.com/Tanq16/goff/internal/probe"
 )
 
 var sharedFlags struct {
@@ -48,6 +49,28 @@ func (e *enumFlag) Set(v string) error {
 }
 
 func (e *enumFlag) Type() string { return strings.Join(e.allowed, "|") }
+
+type trackFlag struct {
+	target *probe.TrackSelector
+}
+
+func newTrack(target *probe.TrackSelector, def probe.TrackSelector) *trackFlag {
+	*target = def
+	return &trackFlag{target: target}
+}
+
+func (t *trackFlag) String() string { return t.target.String() }
+
+func (t *trackFlag) Set(v string) error {
+	sel, err := probe.ParseTrackSelector(v)
+	if err != nil {
+		return err
+	}
+	*t.target = sel
+	return nil
+}
+
+func (t *trackFlag) Type() string { return "all|none|index|lang" }
 
 type scaleFlag struct {
 	target *string

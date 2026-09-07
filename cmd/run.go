@@ -24,7 +24,14 @@ type fileResult struct {
 	OrigSize int64
 	OutSize  int64
 	Duration time.Duration
+	Notes    []string
 	Err      error
+}
+
+func printNotes(notes []string) {
+	for _, note := range notes {
+		utils.PrintWarn(note, nil)
+	}
 }
 
 func requireInputs(args []string) {
@@ -181,8 +188,10 @@ func runSingle(verb string, input string, build buildFunc) {
 
 	res, p, outPath, err := prepare(ctx, input, build)
 	if err != nil {
-		utils.PrintFatal(fmt.Sprintf("cannot %s %s", verb, filepath.Base(input)), err)
+		utils.PrintFatal(fmt.Sprintf("cannot %s %s: %v", verb, filepath.Base(input), err), err)
 	}
+
+	printNotes(res.Notes)
 
 	label := filepath.Base(input)
 	elapsed, err := encodeWithProgress(ctx, verb, label, append(res.Args, outPath), p.TotalDuration())
@@ -209,6 +218,8 @@ func runComposed(verb string, namingInput string, res *ops.OpResult, totalSec fl
 		cleanup()
 		utils.PrintFatal("failed to resolve output path", err)
 	}
+
+	printNotes(res.Notes)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -244,7 +255,7 @@ func runMany(verb string, files []string, build buildFunc) {
 		results = append(results, r)
 		lineCount++
 		if r.Err != nil {
-			utils.PrintIndentedError(filepath.Base(r.Input), r.Err)
+			utils.PrintIndentedError(fmt.Sprintf("%s: %v", filepath.Base(r.Input), r.Err), r.Err)
 			return
 		}
 		utils.PrintIndentedSuccess(fmt.Sprintf("%s → %s (%s)",
@@ -274,6 +285,7 @@ func runMany(verb string, files []string, build buildFunc) {
 				OrigSize: p.Format.Size(),
 				OutSize:  fileSize(outPath),
 				Duration: time.Since(start),
+				Notes:    res.Notes,
 			})
 		})
 	}
@@ -291,10 +303,16 @@ func runMany(verb string, files []string, build buildFunc) {
 	if len(failed) > 0 {
 		utils.PrintError(fmt.Sprintf("%s: %d of %d files failed", verb, len(failed), len(files)), nil)
 		for _, r := range failed {
-			utils.PrintIndentedError(filepath.Base(r.Input), r.Err)
+			utils.PrintIndentedError(fmt.Sprintf("%s: %v", filepath.Base(r.Input), r.Err), r.Err)
 		}
 	} else {
 		utils.PrintSuccess(fmt.Sprintf("%s: %d files completed", verb, len(files)))
+	}
+
+	for _, r := range results {
+		for _, note := range r.Notes {
+			utils.PrintIndentedWarn(fmt.Sprintf("%s: %s", filepath.Base(r.Input), note), nil)
+		}
 	}
 
 	printSummary(results)

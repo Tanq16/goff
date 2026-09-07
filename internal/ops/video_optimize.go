@@ -43,12 +43,19 @@ type VideoOptimizeOpts struct {
 	Keep10Bit     bool
 	KeepHiFiAudio bool
 	CopyVideo     bool
-	Subs          string
+	AudioTracks   probe.TrackSelector
+	SubTracks     probe.TrackSelector
 }
 
 func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimizeOpts) (*OpResult, error) {
 	keepDepth := opts.Keep10Bit || opts.Lossless
 	keepChannels := opts.KeepHiFiAudio || opts.Lossless
+	targetExt := cmp.Or(opts.TargetExt, "mp4")
+
+	plan, err := planTracks(p, opts.AudioTracks, opts.SubTracks, targetExt)
+	if err != nil {
+		return nil, err
+	}
 
 	args := []string{"-i", inputPath, "-map", "0:v:0"}
 	outputIsHEVC := false
@@ -147,11 +154,12 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 		args = append(args, "-tag:v", "hvc1")
 	}
 
-	if p != nil && len(p.AudioStreams()) == 0 {
+	audio := probe.DefaultFirst(plan.Audio)
+	if len(audio) == 0 {
 		args = append(args, "-an")
 	} else {
+		args = mapStreams(args, audio)
 		args = append(args,
-			"-map", "0:a:0",
 			"-c:a", "aac",
 			"-b:a", cmp.Or(opts.AudioBitrate, "128k"),
 			"-ar", strconv.Itoa(cmp.Or(opts.AudioRate, 48000)),
@@ -160,16 +168,12 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 		if !keepChannels {
 			args = append(args, "-ac", "2")
 		}
+		args = audioDispositions(args, len(audio))
 	}
 
-	if opts.Subs == "all" && p != nil {
-		subCount := len(p.SubtitleStreams())
-		for i := range subCount {
-			args = append(args, "-map", fmt.Sprintf("0:s:%d", i))
-		}
-		if subCount > 0 {
-			args = append(args, "-c:s", "mov_text")
-		}
+	if len(plan.Subtitles) > 0 {
+		args = mapStreams(args, plan.Subtitles)
+		args = append(args, "-c:s", plan.SubEncoder)
 	}
 
 	args = append(args, "-movflags", "+faststart")
@@ -188,6 +192,7 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 	return &OpResult{
 		Args:      args,
 		Suffix:    suffix,
-		TargetExt: cmp.Or(opts.TargetExt, "mp4"),
+		TargetExt: targetExt,
+		Notes:     plan.Notes,
 	}, nil
 }
