@@ -125,10 +125,16 @@ func prepare(ctx context.Context, input string, build buildFunc) (*ops.OpResult,
 func encodeWithProgress(ctx context.Context, verb string, label string, args []string, totalSec float64) (time.Duration, error) {
 	utils.PrintRunning(fmt.Sprintf("%s %s", verb, label))
 
-	var curPercent atomic.Int32
+	var latest atomic.Pointer[engine.ProgressUpdate]
+	latest.Store(&engine.ProgressUpdate{TotalSeconds: totalSec})
 	var printed atomic.Bool
 	done := make(chan struct{})
 	var bar sync.WaitGroup
+
+	show := func() {
+		p := latest.Load()
+		utils.PrintProgress(label, p.Percent, p.CurrentSeconds, p.TotalSeconds)
+	}
 
 	bar.Go(func() {
 		t := time.NewTicker(1 * time.Second)
@@ -144,20 +150,24 @@ func encodeWithProgress(ctx context.Context, verb string, label string, args []s
 				}
 				firstTick = false
 				printed.Store(true)
-				utils.PrintProgress(label, int(curPercent.Load()))
+				show()
 			}
 		}
 	})
 
 	start := time.Now()
 	err := engine.RunFFmpeg(ctx, args, totalSec, func(prog engine.ProgressUpdate) {
-		curPercent.Store(int32(prog.Percent))
+		latest.Store(&prog)
 	})
 	elapsed := time.Since(start)
 
 	close(done)
 	bar.Wait()
 	if printed.Load() {
+		utils.ClearPreviousLine()
+	}
+	if err == nil {
+		show()
 		utils.ClearPreviousLine()
 	}
 	utils.ClearLines(1)
