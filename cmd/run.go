@@ -265,7 +265,7 @@ func runMany(verb string, files []string, build buildFunc) {
 		results = append(results, r)
 		lineCount++
 		if r.Err != nil {
-			utils.PrintIndentedError(fmt.Sprintf("%s: %v", filepath.Base(r.Input), r.Err), r.Err)
+			utils.PrintIndentedError(fmt.Sprintf("%s failed", filepath.Base(r.Input)), r.Err)
 			return
 		}
 		utils.PrintIndentedSuccess(fmt.Sprintf("%s → %s (%s)",
@@ -313,7 +313,7 @@ func runMany(verb string, files []string, build buildFunc) {
 	if len(failed) > 0 {
 		utils.PrintError(fmt.Sprintf("%s: %d of %d files failed", verb, len(failed), len(files)), nil)
 		for _, r := range failed {
-			utils.PrintIndentedError(fmt.Sprintf("%s: %v", filepath.Base(r.Input), r.Err), r.Err)
+			utils.PrintIndentedError(fmt.Sprintf("%s failed", filepath.Base(r.Input)), r.Err)
 		}
 	} else {
 		utils.PrintSuccess(fmt.Sprintf("%s: %d files completed", verb, len(files)))
