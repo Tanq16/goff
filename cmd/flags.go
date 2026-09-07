@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Tanq16/goff/internal/ops"
+	"github.com/Tanq16/goff/internal/probe"
 )
 
 var sharedFlags struct {
@@ -48,6 +49,28 @@ func (e *enumFlag) Set(v string) error {
 }
 
 func (e *enumFlag) Type() string { return strings.Join(e.allowed, "|") }
+
+type trackFlag struct {
+	target *probe.TrackSelector
+}
+
+func newTrack(target *probe.TrackSelector, def probe.TrackSelector) *trackFlag {
+	*target = def
+	return &trackFlag{target: target}
+}
+
+func (t *trackFlag) String() string { return t.target.String() }
+
+func (t *trackFlag) Set(v string) error {
+	sel, err := probe.ParseTrackSelector(v)
+	if err != nil {
+		return err
+	}
+	*t.target = sel
+	return nil
+}
+
+func (t *trackFlag) Type() string { return "all|none|index|lang" }
 
 type scaleFlag struct {
 	target *string
@@ -148,6 +171,34 @@ func (s *sizeFlag) Set(v string) error {
 
 func (s *sizeFlag) Type() string { return "size" }
 
+var audioSampleRates = []int{8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 64000, 88200, 96000}
+
+type sampleRateFlag struct {
+	target *int
+}
+
+func newSampleRate(target *int, def int) *sampleRateFlag {
+	*target = def
+	return &sampleRateFlag{target: target}
+}
+
+func (s *sampleRateFlag) String() string { return strconv.Itoa(*s.target) }
+
+func (s *sampleRateFlag) Set(v string) error {
+	n, err := strconv.Atoi(strings.TrimSpace(v))
+	if err != nil || !slices.Contains(audioSampleRates, n) {
+		allowed := make([]string, 0, len(audioSampleRates))
+		for _, rate := range audioSampleRates {
+			allowed = append(allowed, strconv.Itoa(rate))
+		}
+		return fmt.Errorf("must be one of: %s", strings.Join(allowed, ", "))
+	}
+	*s.target = n
+	return nil
+}
+
+func (s *sampleRateFlag) Type() string { return "Hz" }
+
 var bitratePattern = regexp.MustCompile(`^[1-9][0-9]*k?$`)
 
 type bitrateFlag struct {
@@ -190,18 +241,27 @@ func parseTimestamp(v string) (float64, error) {
 }
 
 type timestampFlag struct {
-	target *string
+	target  *string
+	seconds *float64
 }
 
 func newTimestamp(target *string) *timestampFlag { return &timestampFlag{target: target} }
 
+func newTimestampSeconds(target *string, seconds *float64) *timestampFlag {
+	return &timestampFlag{target: target, seconds: seconds}
+}
+
 func (t *timestampFlag) String() string { return *t.target }
 
 func (t *timestampFlag) Set(v string) error {
-	if _, err := parseTimestamp(v); err != nil {
+	seconds, err := parseTimestamp(v)
+	if err != nil {
 		return err
 	}
 	*t.target = v
+	if t.seconds != nil {
+		*t.seconds = seconds
+	}
 	return nil
 }
 

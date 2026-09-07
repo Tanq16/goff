@@ -31,12 +31,14 @@ type StreamInfo struct {
 	CodecType        string            `json:"codec_type"`
 	CodecName        string            `json:"codec_name"`
 	CodecLongName    string            `json:"codec_long_name"`
+	CodecTagString   string            `json:"codec_tag_string"`
 	Profile          string            `json:"profile"`
 	Width            int               `json:"width"`
 	Height           int               `json:"height"`
 	PixFmt           string            `json:"pix_fmt"`
 	AvgFrameRate     string            `json:"avg_frame_rate"`
 	RFrameRate       string            `json:"r_frame_rate"`
+	TimeBase         string            `json:"time_base"`
 	SampleRate       string            `json:"sample_rate"`
 	Channels         int               `json:"channels"`
 	ChannelLayout    string            `json:"channel_layout"`

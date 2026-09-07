@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/rs/zerolog/log"
 )
@@ -16,6 +17,7 @@ func RunFFmpeg(ctx context.Context, args []string, totalDurationSec float64, onP
 	fullArgs := append([]string{"-hide_banner", "-loglevel", "error", "-nostats", "-progress", "pipe:1", "-y"}, args...)
 
 	cmd := exec.CommandContext(ctx, "ffmpeg", fullArgs...)
+	cmd.WaitDelay = 10 * time.Second
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {

@@ -71,7 +71,7 @@ func init() {
 	rootCmd.AddCommand(
 		compressCmd, remuxCmd, hlsCmd, transformCmd, watermarkCmd,
 		extractCmd, convertCmd, normalizeCmd, mixCmd,
-		trimCmd, gifCmd,
+		trimCmd, gifCmd, thumbnailCmd,
 		concatCmd, muxCmd, subsCmd,
 		inspectCmd,
 	)

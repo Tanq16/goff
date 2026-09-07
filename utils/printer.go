@@ -125,8 +125,12 @@ func PrintIndentedRunning(msg string) {
 	lipgloss.Println(infoStyle.Render("  ↻ " + msg))
 }
 
+func OutputPersists() bool {
+	return GlobalDebugFlag || !StdoutIsTerminal
+}
+
 func ClearLines(n int) {
-	if GlobalDebugFlag || !StdoutIsTerminal {
+	if OutputPersists() {
 		return
 	}
 	for range n {
@@ -138,11 +142,15 @@ func ClearPreviousLine() {
 	ClearLines(1)
 }
 
-func PrintProgress(label string, percent int) {
+func PrintProgress(label string, percent int, currentSeconds, totalSeconds float64) {
 	percent = min(percent, 100)
 
 	if GlobalDebugFlag {
-		log.Info().Int("percent", percent).Msg(label)
+		log.Info().
+			Int("percent", percent).
+			Float64("currentSeconds", currentSeconds).
+			Float64("totalSeconds", totalSeconds).
+			Msg(label)
 		return
 	}
 	if !StdoutIsTerminal {

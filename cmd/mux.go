@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/spf13/cobra"
 
@@ -36,6 +37,7 @@ keeps every track selectable instead of combining them.`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		video := args[0]
+		rejectInertMuxOptions()
 
 		p, err := probe.RunProbe(context.Background(), video)
 		if err != nil {
@@ -64,6 +66,17 @@ keeps every track selectable instead of combining them.`,
 
 		runComposed("mux", video, res, p.TotalDuration())
 	},
+}
+
+func rejectInertMuxOptions() {
+	if muxFlags.mode != ops.MuxModeSeparate {
+		return
+	}
+	for _, in := range muxFlags.audio {
+		if in.DelayMS != 0 || in.Volume != 1.0 {
+			utils.PrintFatal(fmt.Sprintf("at= and vol= do not apply to --audio-mode separate (%s)", in.Path), nil)
+		}
+	}
 }
 
 func init() {

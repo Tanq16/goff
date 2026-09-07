@@ -14,15 +14,16 @@ import (
 
 var subsFlags struct {
 	subtitles string
-	burn      bool
+	language  string
+	makeDflt  bool
 }
 
 var subsCmd = &cobra.Command{
 	Use:     "subs <video>",
 	GroupID: "combine",
-	Short:   "Add a subtitle track to a video, embedded or burned in",
+	Short:   "Add a subtitle track to a video",
 	Example: `  goff subs film.mkv --subtitles film.srt
-  goff subs clip.mp4 --subtitles clip.srt --burn`,
+  goff subs film.mp4 --subtitles film.eng.srt --lang eng --default`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		video := args[0]
@@ -32,10 +33,11 @@ var subsCmd = &cobra.Command{
 			utils.PrintFatal(fmt.Sprintf("cannot read %s", filepath.Base(video)), err)
 		}
 
-		res, err := ops.BuildMultiMuxSubs(ops.MultiMuxSubsOpts{
+		res, err := ops.BuildMultiMuxSubs(p, ops.MultiMuxSubsOpts{
 			VideoInput: video,
 			SubsInput:  subsFlags.subtitles,
-			Hardburn:   subsFlags.burn,
+			Language:   subsFlags.language,
+			Default:    subsFlags.makeDflt,
 		})
 		if err != nil {
 			utils.PrintFatal("failed to build subtitle arguments", err)
@@ -48,7 +50,8 @@ var subsCmd = &cobra.Command{
 func init() {
 	subsCmd.Flags().StringVar(&subsFlags.subtitles, "subtitles", "", "Subtitle file to add (required)")
 	subsCmd.MarkFlagRequired("subtitles")
-	subsCmd.Flags().BoolVar(&subsFlags.burn, "burn", false, "Render subtitles into the picture instead of embedding a track")
+	subsCmd.Flags().StringVar(&subsFlags.language, "lang", "", "Language code to tag the added track with, e.g. eng")
+	subsCmd.Flags().BoolVar(&subsFlags.makeDflt, "default", false, "Mark the added track as the default subtitle track")
 
 	addOutputFlag(subsCmd)
 }
