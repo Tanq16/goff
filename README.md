@@ -20,7 +20,7 @@ It exists so you stop looking up filter syntax for the same dozen jobs. It is no
 | **Containers** | `remux`, `hls` | Lossless container switching, VoD HLS packaging as fMP4 or MPEG-TS |
 | **Audio** | `extract`, `convert`, `normalize`, `mix` | Audio and subtitle extraction from video, format transcoding, EBU R128 loudness normalization, layering tracks into one |
 | **Transforms** | `transform` | Rotation and flips, resolution tiers, pitch-corrected speed, 9:16 vertical crop, audio removal, composed into one encode |
-| **Segments** | `trim`, `gif` | Time-range cuts, 2-pass palettegen GIF and animated WebP |
+| **Segments** | `trim`, `gif`, `thumbnail` | Time-range cuts, 2-pass palettegen GIF and animated WebP, single-frame JPEG stills |
 | **Multi-file** | `concat`, `mux`, `subs`, `watermark` | Clip joining, external audio muxing, subtitle embedding, logo overlays |
 | **Inspection** | `inspect` | Stream table with codecs, resolutions, languages, per-stream and container bitrates, and HDR transfer characteristics, plus a packet-level browser playability check |
 
@@ -131,6 +131,8 @@ goff trim video.mp4 --start 00:01:30 --end 00:02:00
 goff trim video.mp4 --start 90 --duration 30 --accurate
 goff gif screencast.mp4 --width 640 --fps 20 --start 5 --duration 8
 goff gif screencast.mp4 --to webp
+goff thumbnail movie.mp4                              # JPEG still from the midpoint, 640px wide
+goff thumbnail movie.mp4 --at 00:01:30 --width 1280
 ```
 
 ### Multi-file
@@ -168,6 +170,8 @@ goff inspect video.mp4 --json | jq '.streams[] | select(.type == "audio")'
 goff inspect video.mp4 --json --check | jq '.conformance.browserSafe'
 ```
 
+Piped under `--debug`, progress arrives as one JSON object a second carrying `percent`, `currentSeconds`, and `totalSeconds`, with a final object at completion. A parent process reads those rather than scraping the bar, and a tool wanting goff's encode contract runs the binary rather than reproducing its FFmpeg arguments.
+
 ## Notes
 
 - **Safe output naming**: outputs are written as `<name>.<operation>.<ext>` next to the input, incrementing to `.1.<ext>` on a collision, so an existing file is never replaced. `-o` is the exception, since it names the destination outright.
@@ -190,4 +194,5 @@ goff inspect video.mp4 --json --check | jq '.conformance.browserSafe'
 - **Container bitrate**: `inspect` prints the container bitrate on its summary line, deriving it from size over duration when FFprobe reports none. A derived figure can differ slightly from a reported one, and a file FFprobe gives no duration for shows `-`.
 - **Conformance check**: `inspect --check` reads every packet to report how much real content each stream holds against the timeline it declares, then lists what would stop a browser playing the file. It costs a fraction of a second on a feature-length file, and is off by default because the plain reading needs only the header.
 - **Out-of-range numbers**: a numeric flag given a value past its range is rejected before any work starts. `--help` prints the accepted range as the flag's type, such as `--crf 1..63`. H.265 and H.264 both cap at 51, so a `--crf` above that lands at 51 for either codec, while AV1 uses the full range.
+- **Thumbnails**: `thumbnail` seeks before decoding and writes one JPEG at quality 2, defaulting to the midpoint of the file and 640px wide with the height following the aspect ratio. An `--at` past the end of the file is rejected before FFmpeg runs.
 - **Failure detail**: a failed encode reports the FFmpeg error only under `--debug`, which keeps a wall of filter-graph text out of normal runs.
