@@ -125,9 +125,6 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 		switch {
 		case opts.Lossless:
 			args = append(args, losslessArgs...)
-			if preset != "" {
-				args = append(args, "-preset", preset)
-			}
 		case opts.TargetSizeMB > 0 && p != nil && p.TotalDuration() > 0:
 			dur := p.TotalDuration()
 			audioKbps := 128.0
@@ -140,9 +137,10 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 			)
 		default:
 			args = append(args, "-crf", strconv.Itoa(crf))
-			if preset != "" {
-				args = append(args, "-preset", preset)
-			}
+		}
+
+		if preset != "" {
+			args = append(args, "-preset", preset)
 		}
 
 		if !keepDepth {
