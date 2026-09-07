@@ -170,7 +170,7 @@ goff inspect video.mp4 --json | jq '.streams[] | select(.type == "audio")'
 goff inspect video.mp4 --json --check | jq '.conformance.browserSafe'
 ```
 
-Piped under `--debug`, progress arrives as one JSON object a second carrying `percent`, `currentSeconds`, and `totalSeconds`, with a final object at completion. A parent process reads those rather than scraping the bar, and a tool wanting goff's encode contract runs the binary rather than reproducing its FFmpeg arguments.
+Piped under `--debug`, a single-input run reports progress as one JSON object a second carrying `percent`, `currentSeconds`, and `totalSeconds`, with a final object at completion. A run given several inputs at once reports per-file results instead, with no progress objects. A parent process reads those rather than scraping the bar, and a tool wanting goff's encode contract runs the binary rather than reproducing its FFmpeg arguments.
 
 ## Notes
 
