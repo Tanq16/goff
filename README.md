@@ -40,7 +40,7 @@ sudo mv goff /usr/local/bin/
 
 ### Build from Source
 
-Requires Go 1.26+:
+Requires Go 1.27+:
 
 ```bash
 git clone https://github.com/Tanq16/goff.git
