@@ -2,12 +2,15 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/Tanq16/goff/internal/engine"
@@ -18,9 +21,11 @@ import (
 
 type buildFunc func(input string, p *probe.ProbeResult) (*ops.OpResult, error)
 
+type buildError struct{ error }
+
 type fileResult struct {
 	Input    string
-	Output   string
+	Outputs  []string
 	OrigSize int64
 	OutSize  int64
 	Duration time.Duration
@@ -38,6 +43,38 @@ func requireInputs(args []string) {
 	if sharedFlags.output != "" && len(args) > 1 {
 		utils.PrintFatal("--output names a single destination; drop it to write one output per input", nil)
 	}
+}
+
+func runContext() (context.Context, context.CancelFunc) {
+	return signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+}
+
+func outcome(err error) string {
+	if errors.Is(err, context.Canceled) {
+		return "cancelled"
+	}
+	return "failed"
+}
+
+func failure(verb, label string, err error) (string, error) {
+	var invalid buildError
+	if errors.As(err, &invalid) {
+		return fmt.Sprintf("cannot %s %s: %v", verb, label, err), nil
+	}
+	return fmt.Sprintf("%s %s for %s", verb, outcome(err), label), err
+}
+
+func discard(res *ops.OpResult, outputs []string) {
+	if res != nil && res.Cleanup != nil {
+		res.Cleanup()
+	}
+	for _, out := range outputs {
+		os.Remove(out)
+	}
+}
+
+func encodeArgs(res *ops.OpResult, outputs []string) []string {
+	return append(res.Args, outputs[len(outputs)-1])
 }
 
 var claimed struct {
@@ -103,23 +140,23 @@ func claimOutputDir(input, suffix string) (string, error) {
 	return "", fmt.Errorf("unable to find a free output directory for %q", input)
 }
 
-func prepare(ctx context.Context, input string, build buildFunc) (*ops.OpResult, *probe.ProbeResult, string, error) {
+func prepare(ctx context.Context, input string, build buildFunc) (*ops.OpResult, *probe.ProbeResult, []string, error) {
 	p, err := probe.RunProbe(ctx, input)
 	if err != nil {
-		return nil, nil, "", err
+		return nil, nil, nil, err
 	}
 	res, err := build(input, p)
 	if err != nil {
-		return nil, nil, "", err
+		return nil, nil, nil, buildError{err}
 	}
-	if res.OutputPath != "" {
-		return res, p, res.OutputPath, nil
+	if len(res.OutputPaths) > 0 {
+		return res, p, res.OutputPaths, nil
 	}
 	outPath, err := claimOutput(input, res.Suffix, res.TargetExt)
 	if err != nil {
-		return nil, nil, "", err
+		return nil, nil, nil, err
 	}
-	return res, p, outPath, nil
+	return res, p, []string{outPath}, nil
 }
 
 func encodeWithProgress(ctx context.Context, verb string, label string, args []string, totalSec float64) (time.Duration, error) {
@@ -183,6 +220,14 @@ func fileSize(path string) int64 {
 	return fi.Size()
 }
 
+func totalSize(paths []string) int64 {
+	var total int64
+	for _, path := range paths {
+		total += fileSize(path)
+	}
+	return total
+}
+
 func runFiles(verb string, files []string, build buildFunc) {
 	requireInputs(files)
 	if len(files) == 1 {
@@ -193,52 +238,58 @@ func runFiles(verb string, files []string, build buildFunc) {
 }
 
 func runSingle(verb string, input string, build buildFunc) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx, stop := runContext()
+	defer stop()
 
-	res, p, outPath, err := prepare(ctx, input, build)
+	label := filepath.Base(input)
+	res, p, outPaths, err := prepare(ctx, input, build)
 	if err != nil {
-		utils.PrintFatal(fmt.Sprintf("cannot %s %s: %v", verb, filepath.Base(input), err), err)
+		utils.PrintFatal(failure(verb, label, err))
 	}
 
 	printNotes(res.Notes)
 
-	label := filepath.Base(input)
-	elapsed, err := encodeWithProgress(ctx, verb, label, append(res.Args, outPath), p.TotalDuration())
+	elapsed, err := encodeWithProgress(ctx, verb, label, encodeArgs(res, outPaths), p.TotalDuration())
 	if err != nil {
-		if res.Cleanup != nil {
-			res.Cleanup()
-		}
-		utils.PrintFatal(fmt.Sprintf("%s failed for %s", verb, label), err)
+		discard(res, outPaths)
+		utils.PrintFatal(failure(verb, label, err))
 	}
 
-	utils.PrintSuccess(fmt.Sprintf("%s → %s (%s, %s → %s)",
-		label, outPath, elapsed.Round(100*time.Millisecond),
-		probe.FormatBytes(p.Format.Size()), probe.FormatBytes(fileSize(outPath))))
+	rounded := elapsed.Round(100 * time.Millisecond)
+	if len(outPaths) == 1 {
+		utils.PrintSuccess(fmt.Sprintf("%s → %s (%s, %s → %s)",
+			label, outPaths[0], rounded,
+			probe.FormatBytes(p.Format.Size()), probe.FormatBytes(fileSize(outPaths[0]))))
+		return
+	}
+	utils.PrintSuccess(fmt.Sprintf("%s → %d files (%s, %s → %s)",
+		label, len(outPaths), rounded,
+		probe.FormatBytes(p.Format.Size()), probe.FormatBytes(totalSize(outPaths))))
+	for _, out := range outPaths {
+		utils.PrintIndentedSuccess(fmt.Sprintf("%s (%s)", out, probe.FormatBytes(fileSize(out))))
+	}
 }
 
 func runComposed(verb string, namingInput string, res *ops.OpResult, totalSec float64) {
-	cleanup := func() {}
-	if res.Cleanup != nil {
-		cleanup = res.Cleanup
-	}
-
 	outPath, err := claimOutput(namingInput, res.Suffix, res.TargetExt)
 	if err != nil {
-		cleanup()
+		discard(res, nil)
 		utils.PrintFatal("failed to resolve output path", err)
 	}
 
 	printNotes(res.Notes)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx, stop := runContext()
+	defer stop()
 
 	label := filepath.Base(namingInput)
 	elapsed, err := encodeWithProgress(ctx, verb, label, append(res.Args, outPath), totalSec)
-	cleanup()
+	if res.Cleanup != nil {
+		res.Cleanup()
+	}
 	if err != nil {
-		utils.PrintFatal(fmt.Sprintf("%s failed", verb), err)
+		os.Remove(outPath)
+		utils.PrintFatal(failure(verb, label, err))
 	}
 
 	utils.PrintSuccess(fmt.Sprintf("%s → %s (%s, %s)",
@@ -249,8 +300,8 @@ func runMany(verb string, files []string, build buildFunc) {
 	workers := max(sharedFlags.jobs, 1)
 	utils.PrintRunning(fmt.Sprintf("%s: %d files, %d workers", verb, len(files), workers))
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx, stop := runContext()
+	defer stop()
 
 	sem := make(chan struct{}, workers)
 	var wg sync.WaitGroup
@@ -265,11 +316,10 @@ func runMany(verb string, files []string, build buildFunc) {
 		results = append(results, r)
 		lineCount++
 		if r.Err != nil {
-			utils.PrintIndentedError(fmt.Sprintf("%s failed", filepath.Base(r.Input)), r.Err)
+			utils.PrintIndentedError(failure(verb, filepath.Base(r.Input), r.Err))
 			return
 		}
-		utils.PrintIndentedSuccess(fmt.Sprintf("%s → %s (%s)",
-			filepath.Base(r.Input), filepath.Base(r.Output), probe.FormatBytes(r.OutSize)))
+		utils.PrintIndentedSuccess(successLine(r))
 	}
 
 	for _, input := range files {
@@ -277,23 +327,28 @@ func runMany(verb string, files []string, build buildFunc) {
 		wg.Go(func() {
 			defer func() { <-sem }()
 			start := time.Now()
-			res, p, outPath, err := prepare(ctx, input, build)
+			res, p, outPaths, err := prepare(ctx, input, build)
 			if err != nil {
 				record(fileResult{Input: input, Err: err})
 				return
 			}
-			if err := engine.RunFFmpeg(ctx, append(res.Args, outPath), p.TotalDuration(), nil); err != nil {
-				if res.Cleanup != nil {
-					res.Cleanup()
-				}
+			label := filepath.Base(input)
+			args := encodeArgs(res, outPaths)
+			if utils.OutputPersists() {
+				_, err = encodeWithProgress(ctx, verb, label, args, p.TotalDuration())
+			} else {
+				err = engine.RunFFmpeg(ctx, args, p.TotalDuration(), nil)
+			}
+			if err != nil {
+				discard(res, outPaths)
 				record(fileResult{Input: input, OrigSize: p.Format.Size(), Duration: time.Since(start), Err: err})
 				return
 			}
 			record(fileResult{
 				Input:    input,
-				Output:   outPath,
+				Outputs:  outPaths,
 				OrigSize: p.Format.Size(),
-				OutSize:  fileSize(outPath),
+				OutSize:  totalSize(outPaths),
 				Duration: time.Since(start),
 				Notes:    res.Notes,
 			})
@@ -312,8 +367,10 @@ func runMany(verb string, files []string, build buildFunc) {
 
 	if len(failed) > 0 {
 		utils.PrintError(fmt.Sprintf("%s: %d of %d files failed", verb, len(failed), len(files)), nil)
-		for _, r := range failed {
-			utils.PrintIndentedError(fmt.Sprintf("%s failed", filepath.Base(r.Input)), r.Err)
+		if !utils.OutputPersists() {
+			for _, r := range failed {
+				utils.PrintIndentedError(failure(verb, filepath.Base(r.Input), r.Err))
+			}
 		}
 	} else {
 		utils.PrintSuccess(fmt.Sprintf("%s: %d files completed", verb, len(files)))
@@ -325,11 +382,21 @@ func runMany(verb string, files []string, build buildFunc) {
 		}
 	}
 
-	printSummary(results)
+	if !utils.GlobalDebugFlag {
+		printSummary(results)
+	}
 
 	if len(failed) > 0 {
 		os.Exit(1)
 	}
+}
+
+func successLine(r fileResult) string {
+	label := filepath.Base(r.Input)
+	if len(r.Outputs) == 1 {
+		return fmt.Sprintf("%s → %s (%s)", label, filepath.Base(r.Outputs[0]), probe.FormatBytes(r.OutSize))
+	}
+	return fmt.Sprintf("%s → %d files (%s)", label, len(r.Outputs), probe.FormatBytes(r.OutSize))
 }
 
 func printSummary(results []fileResult) {

@@ -3,7 +3,6 @@ package cmd
 import (
 	"cmp"
 	"fmt"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -35,7 +34,7 @@ var extractCmd = &cobra.Command{
 				return nil, err
 			}
 			if sharedFlags.output != "" && len(streams) > 1 {
-				return nil, fmt.Errorf("--output names a single destination, and %s has %d matching streams", filepath.Base(input), len(streams))
+				return nil, fmt.Errorf("--output names a single destination, and %d streams match", len(streams))
 			}
 
 			targets := make([]ops.ExtractTarget, 0, len(streams))
@@ -66,7 +65,7 @@ func extractStreams(input string, p *probe.ProbeResult) ([]probe.StreamInfo, str
 			return nil, "", err
 		}
 		if len(streams) == 0 {
-			return nil, "", fmt.Errorf("%s has no audio stream", filepath.Base(input))
+			return nil, "", fmt.Errorf("no audio stream to extract")
 		}
 		return streams, ext, nil
 	}
@@ -82,7 +81,7 @@ func extractStreams(input string, p *probe.ProbeResult) ([]probe.StreamInfo, str
 		}
 	}
 	if len(text) == 0 {
-		return nil, "", fmt.Errorf("%s has no text subtitle stream to extract", filepath.Base(input))
+		return nil, "", fmt.Errorf("no text subtitle stream to extract")
 	}
 	return text, ext, nil
 }

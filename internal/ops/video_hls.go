@@ -96,7 +96,7 @@ func BuildVideoHLS(inputPath string, p *probe.ProbeResult, opts VideoHLSOpts) (*
 
 	if opts.OutputDir != "" {
 		res.Args = append(res.Args, "-hls_segment_filename", filepath.Join(opts.OutputDir, "segment%04d."+segmentExt))
-		res.OutputPath = filepath.Join(opts.OutputDir, "index.m3u8")
+		res.OutputPaths = []string{filepath.Join(opts.OutputDir, "index.m3u8")}
 	}
 
 	return res, nil

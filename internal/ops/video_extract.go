@@ -64,8 +64,13 @@ func BuildExtract(inputPath string, targets []ExtractTarget, opts VideoExtractOp
 		}
 	}
 
+	paths := make([]string, 0, len(targets))
+	for _, t := range targets {
+		paths = append(paths, t.Path)
+	}
+
 	return &OpResult{
-		Args:       args,
-		OutputPath: targets[len(targets)-1].Path,
+		Args:        args,
+		OutputPaths: paths,
 	}, nil
 }

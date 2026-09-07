@@ -125,8 +125,12 @@ func PrintIndentedRunning(msg string) {
 	lipgloss.Println(infoStyle.Render("  ↻ " + msg))
 }
 
+func OutputPersists() bool {
+	return GlobalDebugFlag || !StdoutIsTerminal
+}
+
 func ClearLines(n int) {
-	if GlobalDebugFlag || !StdoutIsTerminal {
+	if OutputPersists() {
 		return
 	}
 	for range n {
