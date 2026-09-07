@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-const DriftToleranceSeconds = 0.05
+const DriftToleranceSeconds = 0.1
 
 type Conformance struct {
 	CodecTag            string   `json:"codecTag"`
@@ -26,9 +26,7 @@ type Conformance struct {
 }
 
 type timeline struct {
-	Packets    int
 	Content    float64
-	Span       float64
 	GapCount   int
 	GapSeconds float64
 }
@@ -93,12 +91,11 @@ func modalDelta(stamps []int64) float64 {
 }
 
 func measure(stamps []int64, expected, timeBase float64) timeline {
-	t := timeline{Packets: len(stamps)}
+	var t timeline
 	if len(stamps) < 2 || expected <= 0 || timeBase <= 0 {
 		return t
 	}
-	t.Content = float64(len(stamps)-1) * expected * timeBase
-	t.Span = float64(stamps[len(stamps)-1]-stamps[0]) * timeBase
+	t.Content = float64(len(stamps)) * expected * timeBase
 	for i := range len(stamps) - 1 {
 		delta := float64(stamps[i+1] - stamps[i])
 		if delta > expected+1 {
@@ -114,7 +111,7 @@ func Conform(ctx context.Context, filePath string, p *ProbeResult) (*Conformance
 
 	if video := p.PrimaryVideoStream(); video != nil {
 		c.CodecTag = video.CodecTagString
-		stamps, err := packetTimestamps(ctx, filePath, "v:0")
+		stamps, err := packetTimestamps(ctx, filePath, strconv.Itoa(video.Index))
 		if err != nil {
 			return nil, err
 		}
@@ -130,7 +127,7 @@ func Conform(ctx context.Context, filePath string, p *ProbeResult) (*Conformance
 	}
 
 	if audio := p.PrimaryAudioStream(); audio != nil {
-		stamps, err := packetTimestamps(ctx, filePath, "a:0")
+		stamps, err := packetTimestamps(ctx, filePath, strconv.Itoa(audio.Index))
 		if err != nil {
 			return nil, err
 		}

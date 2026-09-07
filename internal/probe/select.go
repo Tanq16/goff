@@ -60,8 +60,6 @@ func ParseTrackSelector(v string) (TrackSelector, error) {
 
 func AllTracks() TrackSelector { return TrackSelector{raw: SelectAll, all: true} }
 
-func NoTracks() TrackSelector { return TrackSelector{raw: SelectNone, none: true} }
-
 func (t TrackSelector) String() string { return t.raw }
 
 func (p *ProbeResult) SelectAudio(sel TrackSelector) ([]StreamInfo, error) {

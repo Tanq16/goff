@@ -57,11 +57,16 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 		return nil, err
 	}
 
-	args := []string{"-i", inputPath, "-map", "0:v:0"}
+	video := p.PrimaryVideoStream()
+	if video == nil {
+		return nil, fmt.Errorf("no video stream to compress")
+	}
+
+	args := []string{"-i", inputPath, "-map", fmt.Sprintf("0:%d", video.Index)}
 	outputIsHEVC := false
 
 	if opts.CopyVideo {
-		if v := p.PrimaryVideoStream(); v != nil && strings.EqualFold(v.CodecName, "hevc") {
+		if strings.EqualFold(video.CodecName, "hevc") {
 			outputIsHEVC = true
 		}
 		args = append(args, "-c:v", "copy")
