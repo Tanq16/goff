@@ -13,6 +13,18 @@ type ThumbnailOpts struct {
 	Width     int
 }
 
+func lastFrameStart(p *probe.ProbeResult, total float64) float64 {
+	if total <= 0 {
+		return 0
+	}
+	if v := p.PrimaryVideoStream(); v != nil {
+		if fps := probe.ParseFPS(v.RFrameRate); fps > 0 {
+			return total - 1/fps
+		}
+	}
+	return total
+}
+
 func BuildThumbnail(inputPath string, p *probe.ProbeResult, opts ThumbnailOpts) (*OpResult, error) {
 	if !p.IsVideo() {
 		return nil, fmt.Errorf("no video stream to capture a frame from")
@@ -22,8 +34,8 @@ func BuildThumbnail(inputPath string, p *probe.ProbeResult, opts ThumbnailOpts) 
 	at := opts.At
 	if at == "" {
 		at = strconv.FormatFloat(total/2, 'f', 3, 64)
-	} else if total > 0 && opts.AtSeconds >= total {
-		return nil, fmt.Errorf("--at %s is past the end of the file (%s)", at, probe.FormatDuration(total))
+	} else if last := lastFrameStart(p, total); last > 0 && opts.AtSeconds > last {
+		return nil, fmt.Errorf("--at %s is at or past the last frame of the file (%s)", at, probe.FormatDuration(total))
 	}
 
 	width := opts.Width
