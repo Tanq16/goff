@@ -10,19 +10,17 @@
 
 **goff** (Go FFmpeg) is a terminal media suite for FFmpeg: one verb per operation, sensible defaults, and no filter syntax to look up.
 
-It exists so you stop looking up filter syntax for the same dozen jobs. It is not a video editor or a replacement for FFmpeg itself.
+It exists so the same dozen jobs stop costing a trip through the FFmpeg manual. It is not a video editor or a replacement for FFmpeg itself.
 
 ## Capabilities
 
 | Category | Commands | Description |
 |----------|----------|-------------|
-| **Compression** | `compress` | H.265 / AV1 / H.264 re-encoding, height caps, target file size, lossless mode, automatic HDR tone-mapping, and playback normalization that keeps audio locked to video |
-| **Containers** | `remux`, `hls` | Lossless container switching, VoD HLS packaging as fMP4 or MPEG-TS |
+| **Video** | `compress`, `remux`, `hls`, `transform`, `watermark` | H.265 / AV1 / H.264 re-encoding normalized for playback, lossless container switching, HLS VoD packaging as fMP4 or MPEG-TS, rotation and scaling composed into one pass, logo overlays |
 | **Audio** | `extract`, `convert`, `normalize`, `mix` | Audio and subtitle extraction from video, format transcoding, EBU R128 loudness normalization, layering tracks into one |
-| **Transforms** | `transform` | Rotation and flips, resolution tiers, pitch-corrected speed, 9:16 vertical crop, audio removal, composed into one encode |
 | **Segments** | `trim`, `gif`, `thumbnail` | Time-range cuts, 2-pass palettegen GIF and animated WebP, single-frame JPEG stills |
-| **Multi-file** | `concat`, `mux`, `subs`, `watermark` | Clip joining, external audio muxing, subtitle embedding, logo overlays |
-| **Inspection** | `inspect` | Stream table with codecs, resolutions, languages, per-stream and container bitrates, and HDR transfer characteristics, plus a packet-level browser playability check |
+| **Combining** | `concat`, `mux`, `subs` | Clip joining, external audio muxing, subtitle embedding |
+| **Info** | `inspect` | Stream table with codecs, resolutions, languages, per-stream and container bitrates, and HDR transfer characteristics, plus a packet-level browser playability check |
 
 ## Install
 
@@ -52,11 +50,11 @@ make build
 
 ## Usage
 
-Every command takes one or more input files and writes alongside them, so nothing is overwritten by default.
+Every per-file command writes one output per input next to the source, named `<name>.<operation>.<ext>` and numbered to `<name>.<operation>.1.<ext>` on a collision, so an existing file is never replaced.
 
 | Flag | Effect | Where |
 |------|--------|-------|
-| `--debug` | Structured logs, including the underlying FFmpeg error | every command |
+| `--debug` | Structured logs instead of styled output, carrying the FFmpeg error that a failed encode otherwise withholds | every command |
 | `-o`, `--output` | Explicit output path, overwritten if it exists, single input only | every command except `inspect` |
 | `-j`, `--jobs` | Concurrent encodes when several inputs are given (default 2) | the per-file commands, not `concat`, `mux`, `subs`, `watermark`, or `mix` |
 
@@ -70,16 +68,16 @@ goff compress *.mkv -j 4
 
 ### Compress
 
+`compress` re-encodes for playback rather than for archival, forcing 8-bit color, a constant frame rate, stereo 48kHz AAC, and a faststart MP4. [docs/playback.md](docs/playback.md) covers each change, the flags that opt out of it, and how to verify the result.
+
 ```bash
 goff compress input.mkv                       # H.265, 1080p cap, 8-bit, CFR, 48kHz stereo, faststart
 goff compress input.mkv --codec av1 --crf 28
 goff compress input.mp4 --size 25MB           # bitrate solved to land under 25MB
-goff compress input.mkv --height 720
+goff compress input.mkv --height 720          # 1280x720 cap, HDR sources included
 goff compress master.mov --lossless           # no video quality loss, source resolution kept
 goff compress input.mkv --keep-10bit --keep-hifi-audio   # for VLC rather than a browser
 goff compress drifting.mp4 --copy-video       # repair audio sync, video untouched
-goff compress input.mkv --audio-track eng     # keep one language instead of every track
-goff compress input.mkv --sub-track none      # drop subtitles instead of carrying them
 goff compress input.mkv --preset slow --audio-bitrate 192k --audio-rate 44100
 ```
 
@@ -88,9 +86,18 @@ goff compress input.mkv --preset slow --audio-bitrate 192k --audio-rate 44100
 ```bash
 goff remux input.mkv --to mp4     # no re-encoding
 goff remux capture.mkv --to mp4 --fix-timestamps
-goff remux film.mkv --to mp4 --audio-track eng   # leave the other language tracks behind
 goff hls input.mp4 --segment-type fmp4   # writes input.hls-fmp4/index.m3u8 plus segments
 goff hls input.mp4 --segment-type ts --segment-duration 4
+```
+
+### Tracks
+
+`--audio-track` and `--sub-track` take `all`, `none`, a stream index, or a language code such as `eng`, and `compress`, `remux`, and `extract` all accept both. [docs/tracks.md](docs/tracks.md) covers what each container carries and how `extract` names the files it writes.
+
+```bash
+goff compress input.mkv --audio-track eng --sub-track none
+goff remux film.mkv --to mp4 --audio-track eng
+goff extract film.mkv --to vtt              # one sidecar per text subtitle track
 ```
 
 ### Audio
@@ -98,7 +105,6 @@ goff hls input.mp4 --segment-type ts --segment-duration 4
 ```bash
 goff extract video.mp4 --to mp3 --bitrate 320k
 goff extract video.mp4 --to wav --rate 16000 --channels 1   # ready for a transcriber
-goff extract film.mkv --to vtt                              # one sidecar per text subtitle track
 goff convert song.wav --to opus --rate 48000
 goff normalize podcast.wav --to mp3          # -16 LUFS, -1.5 dBTP
 goff normalize lecture.mp4 --lufs -14
@@ -135,7 +141,7 @@ goff thumbnail movie.mp4                              # JPEG still from the midp
 goff thumbnail movie.mp4 --at 00:01:30 --width 1280
 ```
 
-### Multi-file
+### Combining
 
 ```bash
 goff concat part1.mp4 part2.mp4 part3.mp4
@@ -162,7 +168,7 @@ goff inspect movie.mp4 --check    # timeline gaps, A/V drift, browser playabilit
 
 ### Scripting and agents
 
-Styled output is a property of the destination rather than a flag: piping any command anywhere strips the colors and keeps every progress line instead of redrawing one. `--debug` swaps the styled tier for structured logs carrying the underlying FFmpeg error, and `inspect --json` emits a stable struct instead of a table to scrape:
+Styled output is a property of the destination rather than a flag: piping any command anywhere strips the colors and keeps every progress line instead of redrawing one. `--debug` swaps the styled tier for structured logs, and `inspect --json` emits a stable struct instead of a table to scrape:
 
 ```bash
 goff compress video.mp4 --debug
@@ -170,29 +176,16 @@ goff inspect video.mp4 --json | jq '.streams[] | select(.type == "audio")'
 goff inspect video.mp4 --json --check | jq '.conformance.browserSafe'
 ```
 
-Piped under `--debug`, a single-input run reports progress as one JSON object a second carrying `percent`, `currentSeconds`, and `totalSeconds`, with a final object at completion. A run given several inputs at once reports per-file results instead, with no progress objects. A parent process reads those rather than scraping the bar, and a tool wanting goff's encode contract runs the binary rather than reproducing its FFmpeg arguments.
+Under `--debug`, an encode reports progress as one JSON object a second carrying `percent`, `currentSeconds`, and `totalSeconds`, with a final object at completion. A run given several inputs emits those per file and drops the summary table, which the normal tier keeps even when piped. A parent process reads those objects rather than scraping the bar, and a tool wanting goff's encode contract runs the binary rather than reproducing its FFmpeg arguments.
 
 ## Notes
 
-- **Safe output naming**: outputs are written as `<name>.<operation>.<ext>` next to the input, incrementing to `.1.<ext>` on a collision, so an existing file is never replaced. `-o` is the exception, since it names the destination outright.
-- **Composed transforms**: giving `transform` two or more flags produces one encode named `<name>.transform.<ext>`, while a single flag keeps its descriptive name, such as `clip.rot90.mp4`.
+- **Composed transforms**: a `transform` run given one flag names its output after that change, such as `clip.rot90.mp4`, and a run given two or more names it `<name>.transform.<ext>`.
 - **Input offsets and levels**: `mix` and `mux --audio` accept `<file>:at=<time>` to delay a track and `:vol=<factor>` to change its level, both optional and in either order. A track with neither starts at 0 at its own level.
-- **Audio modes**: `mux --audio-mode` decides what happens to the audio a video already has. `mix` layers it with the new tracks into one, `replace` drops it, and `separate` keeps every track selectable.
+- **Audio modes**: `mux --audio-mode` decides what happens to the audio a video already has. `mix` layers it with the new tracks into one, `replace` drops it, and `separate` keeps every track selectable, which leaves nothing for `at=` or `vol=` to apply to and so rejects them.
 - **HLS layout**: each packaged video gets its own directory holding `index.m3u8` and the segments, so two packaged videos never share a segment name. fMP4 packaging adds an `init.mp4` next to them.
-- **Size targets**: `--size` holds back headroom below the number you give, so a 25MB budget targets 24.5MB and the muxed result stays under the limit.
-- **HDR tone-mapping**: HDR10 and HLG sources are tone-mapped to 8-bit SDR with the Hable curve during `compress`, which takes priority over `--height` for those inputs. `--keep-10bit` skips it and keeps the source grade.
-- **Lossless compression**: `compress --lossless` keeps the source resolution, bit depth, and channel layout, and skips tone-mapping, since all of those are lossy. Audio is still re-encoded to AAC like every other `compress` run. It cannot be combined with `--crf`, `--size`, or `--height`.
-- **Playback normalization**: every `compress` run takes the first video track, keeps every audio track with the default one first, forces 8-bit color and a constant frame rate, downmixes audio to stereo at 48kHz, tags H.265 as `hvc1` so Safari and the Apple media stack accept it, and writes a faststart MP4. `--keep-10bit` and `--keep-hifi-audio` opt out of the first two, and `--audio-rate` sets the third.
-- **Audio sync**: `compress` fills holes in the source audio timeline so the output holds exactly as much audio as its timeline claims. Without that, forcing a constant frame rate lengthens the video while leaving the audio short, and the two drift apart by however much the source was missing. VLC hides the problem by honoring the timestamps; a browser playing the file directly does not.
-- **Repairing a file**: `compress --copy-video` re-encodes only the audio and copies the video stream through, which fixes drift and the `hvc1` tag in seconds rather than a full encode. It cannot be combined with any video-encoding flag.
-- **Track selection**: `--audio-track` and `--sub-track` take `all`, `none`, a stream index as `inspect` prints it, or a language code such as `eng`, and default to `all` on `compress`, `remux`, and `extract`. A selector matching nothing is an error rather than a silent drop.
-- **Subtitles and containers**: text subtitle tracks are converted to `mov_text` for an MP4 and copied untouched into an MKV. Image tracks such as PGS and VobSub survive only an MKV target, since MP4 holds no image subtitle format, and a run that drops them says so.
-- **Subtitles in a browser**: only Safari renders a subtitle track stored inside an MP4, so a browser player needs a sidecar. `goff extract film.mkv --to vtt` writes one `.vtt` per text track for a page to attach with a `<track>` element.
-- **Extraction naming**: `extract` writes one file per selected track, named `<name>.<language>.<ext>`, falling back to `.audio.` or `.subs.` when a track carries no language tag. `--to srt` and `--to vtt` read subtitle tracks, and every other format reads audio.
-- **Audio track order**: `compress` writes the default audio track first and flags only that one, because Chrome plays the first enabled track and Firefox plays the first track in file order. `inspect --check` reports a file where those two disagree.
 - **Timestamp shifting**: `remux --fix-timestamps` moves a negative start time to zero, which matters for captures whose audio and video begin at different points.
+- **Out-of-range numbers**: a numeric flag given a value past its range is rejected before any work starts, and `--help` prints the accepted range as the flag's type, such as `--crf 1..63`. H.265 and H.264 both cap at 51, so a `--crf` above that lands at 51 for either codec, while AV1 uses the full range.
+- **Thumbnails**: `thumbnail` seeks before decoding and writes one JPEG at quality 2, defaulting to the midpoint of the file and 640px wide with the height following the aspect ratio. An `--at` at or past the last frame is rejected before FFmpeg runs.
 - **Container bitrate**: `inspect` prints the container bitrate on its summary line, deriving it from size over duration when FFprobe reports none. A derived figure can differ slightly from a reported one, and a file FFprobe gives no duration for shows `-`.
-- **Conformance check**: `inspect --check` reads every packet to report how much real content each stream holds against the timeline it declares, then lists what would stop a browser playing the file. It costs a fraction of a second on a feature-length file, and is off by default because the plain reading needs only the header.
-- **Out-of-range numbers**: a numeric flag given a value past its range is rejected before any work starts. `--help` prints the accepted range as the flag's type, such as `--crf 1..63`. H.265 and H.264 both cap at 51, so a `--crf` above that lands at 51 for either codec, while AV1 uses the full range.
-- **Thumbnails**: `thumbnail` seeks before decoding and writes one JPEG at quality 2, defaulting to the midpoint of the file and 640px wide with the height following the aspect ratio. An `--at` past the end of the file is rejected before FFmpeg runs.
-- **Failure detail**: a failed encode reports the FFmpeg error only under `--debug`, which keeps a wall of filter-graph text out of normal runs.
+- **Interrupting a run**: Ctrl+C or `SIGTERM` stops FFmpeg and deletes the partial output, then reports the run as cancelled and exits non-zero.
