@@ -1,6 +1,7 @@
 package ops
 
 import (
+	"fmt"
 	"regexp"
 	"slices"
 	"strings"
@@ -46,4 +47,15 @@ func ValidScaleTarget(v string) bool {
 		return true
 	}
 	return scaleDimensions.MatchString(strings.ToLower(strings.TrimSpace(v)))
+}
+
+func FitClause(maxHeight int) string {
+	if maxHeight <= 0 {
+		maxHeight = 1080
+	}
+	return fmt.Sprintf("scale='min(%d,iw)':'min(%d,ih)':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2", maxHeight*16/9, maxHeight)
+}
+
+func ToneMapFilter(maxHeight int) string {
+	return FitClause(maxHeight) + ",format=gbrpf32le,tonemap=hable:desat=0.5,format=yuv420p"
 }

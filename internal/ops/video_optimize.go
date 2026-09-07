@@ -114,13 +114,9 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 
 		if !opts.Lossless {
 			if !keepDepth && p != nil && p.IsHDR() {
-				args = append(args, "-vf", probe.ToneMapFilter())
+				args = append(args, "-vf", ToneMapFilter(opts.MaxHeight))
 			} else {
-				maxH := opts.MaxHeight
-				if maxH == 0 {
-					maxH = 1080
-				}
-				args = append(args, "-vf", fmt.Sprintf("scale='min(1920,iw)':'min(%d,ih)':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2", maxH))
+				args = append(args, "-vf", FitClause(opts.MaxHeight))
 			}
 		}
 
