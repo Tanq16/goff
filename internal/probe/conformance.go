@@ -12,6 +12,8 @@ import (
 
 const DriftToleranceSeconds = 0.1
 
+const gapPeriodTolerance = 1.5
+
 type Conformance struct {
 	CodecTag            string   `json:"codecTag"`
 	VideoStartSeconds   float64  `json:"videoStartSeconds"`
@@ -101,11 +103,16 @@ func measure(stamps []int64, expected, timeBase float64) timeline {
 	}
 	t.Start = float64(stamps[0]) * timeBase
 	t.Content = float64(len(stamps)) * expected * timeBase
+
+	period := modalDelta(stamps)
+	if period <= 0 {
+		period = expected
+	}
 	for i := range len(stamps) - 1 {
 		delta := float64(stamps[i+1] - stamps[i])
-		if delta > expected+1 {
+		if delta > period*gapPeriodTolerance {
 			t.GapCount++
-			t.GapSeconds += (delta - expected) * timeBase
+			t.GapSeconds += (delta - period) * timeBase
 		}
 	}
 	return t
