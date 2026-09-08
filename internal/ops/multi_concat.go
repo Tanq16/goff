@@ -32,7 +32,7 @@ func CheckConcatInputs(probes []*probe.ProbeResult, reencode bool) error {
 	return nil
 }
 
-func BuildMultiConcat(inputs []string, opts MultiConcatOpts) (*OpResult, error) {
+func BuildMultiConcat(inputs []string, probes []*probe.ProbeResult, opts MultiConcatOpts) (*OpResult, error) {
 	if len(inputs) < 2 {
 		return nil, fmt.Errorf("concatenation requires at least 2 input files")
 	}
@@ -69,7 +69,8 @@ func BuildMultiConcat(inputs []string, opts MultiConcatOpts) (*OpResult, error) 
 			"-i", tmpList.Name(),
 			"-c", "copy",
 		}
-		if ext == "mp4" || ext == "mov" {
+		args = tagHEVC(args, copiedVideoIsHEVC(probes...), ext)
+		if containerUsesMOVMuxer(ext) {
 			args = append(args, "-movflags", "+faststart")
 		}
 

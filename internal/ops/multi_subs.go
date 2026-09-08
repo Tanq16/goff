@@ -29,6 +29,7 @@ func BuildMultiMuxSubs(p *probe.ProbeResult, opts MultiMuxSubsOpts) (*OpResult, 
 	args = mapStreams(args, plan.Subtitles)
 	args = mapStreams(args, plan.Attachments)
 	args = append(args, "-map", "1:0", "-c", "copy")
+	args = tagHEVC(args, copiedVideoIsHEVC(p), targetExt)
 
 	added := len(plan.Subtitles)
 	if !containerHoldsEverything(targetExt) {
@@ -43,7 +44,7 @@ func BuildMultiMuxSubs(p *probe.ProbeResult, opts MultiMuxSubsOpts) (*OpResult, 
 		}
 		args = append(args, fmt.Sprintf("-disposition:s:%d", added), "default")
 	}
-	if !containerHoldsEverything(targetExt) {
+	if containerUsesMOVMuxer(targetExt) {
 		args = append(args, "-movflags", "+faststart")
 	}
 
