@@ -7,4 +7,5 @@ type OpResult struct {
 	OutputPaths []string
 	Notes       []string
 	Cleanup     func()
+	PostProcess func(outputs []string) error
 }

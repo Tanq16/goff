@@ -73,6 +73,13 @@ func discard(res *ops.OpResult, outputs []string) {
 	}
 }
 
+func postProcess(res *ops.OpResult, outputs []string) error {
+	if res.PostProcess == nil {
+		return nil
+	}
+	return res.PostProcess(outputs)
+}
+
 func encodeArgs(res *ops.OpResult, outputs []string) []string {
 	return append(res.Args, outputs[len(outputs)-1])
 }
@@ -250,6 +257,9 @@ func runSingle(verb string, input string, build buildFunc) {
 	printNotes(res.Notes)
 
 	elapsed, err := encodeWithProgress(ctx, verb, label, encodeArgs(res, outPaths), p.TotalDuration())
+	if err == nil {
+		err = postProcess(res, outPaths)
+	}
 	if err != nil {
 		discard(res, outPaths)
 		utils.PrintFatal(failure(verb, label, err))
@@ -286,6 +296,9 @@ func runComposed(verb string, namingInput string, res *ops.OpResult, totalSec fl
 	elapsed, err := encodeWithProgress(ctx, verb, label, append(res.Args, outPath), totalSec)
 	if res.Cleanup != nil {
 		res.Cleanup()
+	}
+	if err == nil {
+		err = postProcess(res, []string{outPath})
 	}
 	if err != nil {
 		os.Remove(outPath)
@@ -338,6 +351,9 @@ func runMany(verb string, files []string, build buildFunc) {
 				_, err = encodeWithProgress(ctx, verb, label, args, p.TotalDuration())
 			} else {
 				err = engine.RunFFmpeg(ctx, args, p.TotalDuration(), nil)
+			}
+			if err == nil {
+				err = postProcess(res, outPaths)
 			}
 			if err != nil {
 				discard(res, outPaths)
