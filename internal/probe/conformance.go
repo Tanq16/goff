@@ -41,11 +41,10 @@ func (s *StreamInfo) TimeBaseSeconds() float64 {
 	return ParseFPS(s.TimeBase)
 }
 
-func packetTimestamps(ctx context.Context, filePath, selector string) ([]int64, error) {
+func packetTimestamps(ctx context.Context, filePath string) (map[int][]int64, error) {
 	args := []string{
 		"-v", "error",
-		"-select_streams", selector,
-		"-show_entries", "packet=pts",
+		"-show_entries", "packet=stream_index,pts",
 		"-of", "csv=p=0",
 		filePath,
 	}
@@ -57,25 +56,32 @@ func packetTimestamps(ctx context.Context, filePath, selector string) ([]int64, 
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
 		if detail := strings.TrimSpace(stderr.String()); detail != "" {
-			return nil, fmt.Errorf("ffprobe failed to read %s packets of %q: %s (%w)", selector, filePath, detail, err)
+			return nil, fmt.Errorf("ffprobe failed to read packets of %q: %s (%w)", filePath, detail, err)
 		}
-		return nil, fmt.Errorf("ffprobe failed to read %s packets of %q: %w", selector, filePath, err)
+		return nil, fmt.Errorf("ffprobe failed to read packets of %q: %w", filePath, err)
 	}
 
-	var stamps []int64
+	byStream := make(map[int][]int64, 4)
 	for line := range strings.SplitSeq(stdout.String(), "\n") {
-		field := strings.TrimSuffix(strings.TrimSpace(line), ",")
-		if field == "" || field == "N/A" {
+		indexField, rest, ok := strings.Cut(strings.TrimSpace(line), ",")
+		if !ok {
 			continue
 		}
-		pts, err := strconv.ParseInt(field, 10, 64)
+		index, err := strconv.Atoi(indexField)
 		if err != nil {
 			continue
 		}
-		stamps = append(stamps, pts)
+		ptsField, _, _ := strings.Cut(rest, ",")
+		pts, err := strconv.ParseInt(ptsField, 10, 64)
+		if err != nil {
+			continue
+		}
+		byStream[index] = append(byStream[index], pts)
 	}
-	slices.Sort(stamps)
-	return stamps, nil
+	for index := range byStream {
+		slices.Sort(byStream[index])
+	}
+	return byStream, nil
 }
 
 func modalDelta(stamps []int64) float64 {
@@ -120,31 +126,34 @@ func measure(stamps []int64, expected, timeBase float64) timeline {
 
 func Conform(ctx context.Context, filePath string, p *ProbeResult) (*Conformance, error) {
 	c := &Conformance{}
+	video := p.PrimaryVideoStream()
+	audio := p.PrimaryAudioStream()
 
-	if video := p.PrimaryVideoStream(); video != nil {
-		c.CodecTag = video.CodecTagString
-		stamps, err := packetTimestamps(ctx, filePath, strconv.Itoa(video.Index))
+	var stamps map[int][]int64
+	if video != nil || audio != nil {
+		var err error
+		stamps, err = packetTimestamps(ctx, filePath)
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	if video != nil {
+		c.CodecTag = video.CodecTagString
 		timeBase := video.TimeBaseSeconds()
-		expected := modalDelta(stamps)
+		expected := modalDelta(stamps[video.Index])
 		if fps := ParseFPS(video.RFrameRate); fps > 0 && timeBase > 0 {
 			expected = 1 / (fps * timeBase)
 		}
-		t := measure(stamps, expected, timeBase)
+		t := measure(stamps[video.Index], expected, timeBase)
 		c.VideoStartSeconds = t.Start
 		c.VideoContentSeconds = t.Content
 		c.VideoGapCount = t.GapCount
 		c.VideoGapSeconds = t.GapSeconds
 	}
 
-	if audio := p.PrimaryAudioStream(); audio != nil {
-		stamps, err := packetTimestamps(ctx, filePath, strconv.Itoa(audio.Index))
-		if err != nil {
-			return nil, err
-		}
-		t := measure(stamps, modalDelta(stamps), audio.TimeBaseSeconds())
+	if audio != nil {
+		t := measure(stamps[audio.Index], modalDelta(stamps[audio.Index]), audio.TimeBaseSeconds())
 		c.AudioStartSeconds = t.Start
 		c.AudioContentSeconds = t.Content
 		c.AudioGapCount = t.GapCount
