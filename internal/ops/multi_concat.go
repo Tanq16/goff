@@ -70,7 +70,7 @@ func BuildMultiConcat(inputs []string, probes []*probe.ProbeResult, opts MultiCo
 			"-c", "copy",
 		}
 		args = tagHEVC(args, copiedVideoIsHEVC(probes...), ext)
-		if ext == "mp4" || ext == "mov" {
+		if containerUsesMOVMuxer(ext) {
 			args = append(args, "-movflags", "+faststart")
 		}
 

@@ -40,12 +40,13 @@ func copiedVideoIsHEVC(probes ...*probe.ProbeResult) bool {
 	return true
 }
 
-func tagHEVC(args []string, outputIsHEVC bool, targetExt string) []string {
-	if !outputIsHEVC {
-		return args
-	}
+func containerUsesMOVMuxer(targetExt string) bool {
 	ext := strings.ToLower(strings.TrimPrefix(targetExt, "."))
-	if ext != "mp4" && ext != "mov" {
+	return ext == "mp4" || ext == "mov"
+}
+
+func tagHEVC(args []string, outputIsHEVC bool, targetExt string) []string {
+	if !outputIsHEVC || !containerUsesMOVMuxer(targetExt) {
 		return args
 	}
 	return append(args, "-tag:v", "hvc1")

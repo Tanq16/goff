@@ -44,7 +44,7 @@ func BuildMultiMuxSubs(p *probe.ProbeResult, opts MultiMuxSubsOpts) (*OpResult, 
 		}
 		args = append(args, fmt.Sprintf("-disposition:s:%d", added), "default")
 	}
-	if !containerHoldsEverything(targetExt) {
+	if containerUsesMOVMuxer(targetExt) {
 		args = append(args, "-movflags", "+faststart")
 	}
 
