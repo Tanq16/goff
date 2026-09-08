@@ -19,6 +19,38 @@ func containerHoldsEverything(targetExt string) bool {
 	return strings.EqualFold(strings.TrimPrefix(targetExt, "."), "mkv")
 }
 
+func copiedVideoIsHEVC(probes ...*probe.ProbeResult) bool {
+	if len(probes) == 0 {
+		return false
+	}
+	for _, p := range probes {
+		if p == nil {
+			return false
+		}
+		videos := p.VideoStreams()
+		if len(videos) == 0 {
+			return false
+		}
+		for _, v := range videos {
+			if !strings.EqualFold(v.CodecName, "hevc") {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func tagHEVC(args []string, outputIsHEVC bool, targetExt string) []string {
+	if !outputIsHEVC {
+		return args
+	}
+	ext := strings.ToLower(strings.TrimPrefix(targetExt, "."))
+	if ext != "mp4" && ext != "mov" {
+		return args
+	}
+	return append(args, "-tag:v", "hvc1")
+}
+
 func planTracks(p *probe.ProbeResult, audioSel, subSel probe.TrackSelector, targetExt string) (trackPlan, error) {
 	var plan trackPlan
 	if p == nil {

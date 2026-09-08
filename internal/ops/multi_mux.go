@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+
+	"github.com/Tanq16/goff/internal/probe"
 )
 
 const (
@@ -13,12 +15,11 @@ const (
 )
 
 type MultiMuxAudioOpts struct {
-	VideoInput    string
-	Sources       []AudioSource
-	Mode          string
-	Fit           string
-	AudioBitrate  string
-	VideoHasAudio bool
+	VideoInput   string
+	Sources      []AudioSource
+	Mode         string
+	Fit          string
+	AudioBitrate string
 }
 
 func videoContainerFor(path string) string {
@@ -31,7 +32,7 @@ func videoContainerFor(path string) string {
 	return "mp4"
 }
 
-func BuildMultiMuxAudio(opts MultiMuxAudioOpts) (*OpResult, error) {
+func BuildMultiMuxAudio(p *probe.ProbeResult, opts MultiMuxAudioOpts) (*OpResult, error) {
 	if opts.VideoInput == "" {
 		return nil, fmt.Errorf("muxing audio requires a video input")
 	}
@@ -44,6 +45,8 @@ func BuildMultiMuxAudio(opts MultiMuxAudioOpts) (*OpResult, error) {
 		bitrate = "192k"
 	}
 
+	videoHasAudio := p != nil && len(p.AudioStreams()) > 0
+
 	args := []string{"-i", opts.VideoInput}
 	for _, s := range opts.Sources {
 		args = append(args, "-i", s.Path)
@@ -51,7 +54,7 @@ func BuildMultiMuxAudio(opts MultiMuxAudioOpts) (*OpResult, error) {
 
 	if opts.Mode == MuxModeSeparate {
 		args = append(args, "-map", "0:v:0")
-		if opts.VideoHasAudio {
+		if videoHasAudio {
 			args = append(args, "-map", "0:a")
 		}
 		for i := range opts.Sources {
@@ -61,7 +64,7 @@ func BuildMultiMuxAudio(opts MultiMuxAudioOpts) (*OpResult, error) {
 	} else {
 		labels := make([]string, 0, len(opts.Sources)+1)
 		sources := make([]AudioSource, 0, len(opts.Sources)+1)
-		if opts.Mode != MuxModeReplace && opts.VideoHasAudio {
+		if opts.Mode != MuxModeReplace && videoHasAudio {
 			labels = append(labels, "[0:a]")
 			sources = append(sources, AudioSource{Volume: 1.0})
 		}
@@ -81,6 +84,7 @@ func BuildMultiMuxAudio(opts MultiMuxAudioOpts) (*OpResult, error) {
 	}
 
 	targetExt := videoContainerFor(opts.VideoInput)
+	args = tagHEVC(args, copiedVideoIsHEVC(p), targetExt)
 	if targetExt == "mp4" || targetExt == "mov" {
 		args = append(args, "-movflags", "+faststart")
 	}

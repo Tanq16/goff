@@ -31,6 +31,7 @@ func BuildVideoRemux(inputPath string, p *probe.ProbeResult, opts VideoRemuxOpts
 	args = mapStreams(args, plan.Attachments)
 
 	args = append(args, "-c", "copy")
+	args = tagHEVC(args, copiedVideoIsHEVC(p), targetExt)
 	if len(plan.Subtitles) > 0 && plan.SubEncoder != "copy" {
 		args = append(args, "-c:s", plan.SubEncoder)
 	}

@@ -30,10 +30,12 @@ func BuildVideoTrim(inputPath string, p *probe.ProbeResult, opts VideoTrimOpts) 
 		args = append(args, "-t", opts.Duration)
 	}
 
+	targetExt := "mp4"
 	if opts.Accurate {
 		args = append(args, "-c:v", "libx264", "-crf", "18", "-preset", "fast", "-c:a", "aac", "-b:a", "192k")
 	} else {
 		args = append(args, "-c", "copy")
+		args = tagHEVC(args, copiedVideoIsHEVC(p), targetExt)
 	}
 
 	args = append(args, "-movflags", "+faststart")
@@ -41,6 +43,6 @@ func BuildVideoTrim(inputPath string, p *probe.ProbeResult, opts VideoTrimOpts) 
 	return &OpResult{
 		Args:      args,
 		Suffix:    "trimmed",
-		TargetExt: "mp4",
+		TargetExt: targetExt,
 	}, nil
 }

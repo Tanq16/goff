@@ -41,7 +41,7 @@ To layer audio tracks so they play at the same time, use mix.`,
 			utils.PrintFatal(err.Error(), nil)
 		}
 
-		res, err := ops.BuildMultiConcat(args, ops.MultiConcatOpts{
+		res, err := ops.BuildMultiConcat(args, probes, ops.MultiConcatOpts{
 			Reencode: concatFlags.reencode,
 		})
 		if err != nil {

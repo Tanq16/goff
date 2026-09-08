@@ -52,13 +52,12 @@ keeps every track selectable instead of combining them.`,
 			sources = append(sources, ops.AudioSource{Path: in.Path, DelayMS: in.DelayMS, Volume: in.Volume})
 		}
 
-		res, err := ops.BuildMultiMuxAudio(ops.MultiMuxAudioOpts{
-			VideoInput:    video,
-			Sources:       sources,
-			Mode:          muxFlags.mode,
-			Fit:           muxFlags.fit,
-			AudioBitrate:  muxFlags.bitrate,
-			VideoHasAudio: len(p.AudioStreams()) > 0,
+		res, err := ops.BuildMultiMuxAudio(p, ops.MultiMuxAudioOpts{
+			VideoInput:   video,
+			Sources:      sources,
+			Mode:         muxFlags.mode,
+			Fit:          muxFlags.fit,
+			AudioBitrate: muxFlags.bitrate,
 		})
 		if err != nil {
 			utils.PrintFatal("failed to build mux arguments", err)
