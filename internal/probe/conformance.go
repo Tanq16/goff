@@ -108,7 +108,7 @@ func measure(stamps []int64, expected, timeBase float64) timeline {
 		return t
 	}
 	t.Start = float64(stamps[0]) * timeBase
-	t.Content = float64(len(stamps)) * expected * timeBase
+	t.Content = (float64(stamps[len(stamps)-1]-stamps[0]) + expected) * timeBase
 
 	period := modalDelta(stamps)
 	if period <= 0 {
