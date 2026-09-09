@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/Tanq16/goff/internal/subs"
 )
 
 type ExtractTarget struct {
@@ -69,8 +71,21 @@ func BuildExtract(inputPath string, targets []ExtractTarget, opts VideoExtractOp
 		paths = append(paths, t.Path)
 	}
 
-	return &OpResult{
+	res := &OpResult{
 		Args:        args,
 		OutputPaths: paths,
-	}, nil
+	}
+	if strings.EqualFold(opts.Format, "vtt") {
+		res.PostProcess = cleanVTTOutputs
+	}
+	return res, nil
+}
+
+func cleanVTTOutputs(outputs []string) error {
+	for _, out := range outputs {
+		if err := subs.CleanVTT(out); err != nil {
+			return err
+		}
+	}
+	return nil
 }

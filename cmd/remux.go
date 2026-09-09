@@ -12,6 +12,7 @@ var remuxFlags struct {
 	fixTimestamps bool
 	audioTracks   probe.TrackSelector
 	subTracks     probe.TrackSelector
+	defaultAudio  probe.TrackSelector
 }
 
 var remuxCmd = &cobra.Command{
@@ -19,7 +20,8 @@ var remuxCmd = &cobra.Command{
 	GroupID: "video",
 	Short:   "Switch container without re-encoding a single stream",
 	Example: `  goff remux capture.mkv --to mp4
-  goff remux film.mkv --to mp4 --audio-track eng`,
+  goff remux film.mkv --to mp4 --audio-track eng
+  goff remux anime.mkv --to mp4 --default-audio jpn`,
 	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		runFiles("remux", args, func(input string, p *probe.ProbeResult) (*ops.OpResult, error) {
@@ -28,6 +30,7 @@ var remuxCmd = &cobra.Command{
 				FixTimestamps: remuxFlags.fixTimestamps,
 				AudioTracks:   remuxFlags.audioTracks,
 				SubTracks:     remuxFlags.subTracks,
+				DefaultAudio:  remuxFlags.defaultAudio,
 			})
 		})
 	},
@@ -38,6 +41,7 @@ func init() {
 	remuxCmd.Flags().BoolVar(&remuxFlags.fixTimestamps, "fix-timestamps", false, "Shift negative start timestamps to zero")
 	remuxCmd.Flags().Var(newTrack(&remuxFlags.audioTracks, probe.AllTracks()), "audio-track", "Audio tracks to keep, by stream index or language")
 	remuxCmd.Flags().Var(newTrack(&remuxFlags.subTracks, probe.AllTracks()), "sub-track", "Subtitle tracks to keep, by stream index or language")
+	remuxCmd.Flags().Var(newOneTrack(&remuxFlags.defaultAudio), "default-audio", "Audio track to place first and flag as default, by stream index or language")
 
 	addOutputFlag(remuxCmd)
 	addJobsFlag(remuxCmd)

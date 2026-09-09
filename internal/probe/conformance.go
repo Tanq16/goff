@@ -14,6 +14,8 @@ const DriftToleranceSeconds = 0.1
 
 const gapPeriodTolerance = 1.5
 
+var browserSafePixelFormats = []string{"yuv420p", "yuv420p10le"}
+
 type Conformance struct {
 	CodecTag            string   `json:"codecTag"`
 	VideoStartSeconds   float64  `json:"videoStartSeconds"`
@@ -108,7 +110,7 @@ func measure(stamps []int64, expected, timeBase float64) timeline {
 		return t
 	}
 	t.Start = float64(stamps[0]) * timeBase
-	t.Content = float64(len(stamps)) * expected * timeBase
+	t.Content = (float64(stamps[len(stamps)-1]-stamps[0]) + expected) * timeBase
 
 	period := modalDelta(stamps)
 	if period <= 0 {
@@ -189,8 +191,8 @@ func (p *ProbeResult) browserIssues(c *Conformance) []string {
 		if codec == "hevc" && !strings.EqualFold(video.CodecTagString, "hvc1") {
 			issues = append(issues, fmt.Sprintf("HEVC is tagged %s, and Safari plays only hvc1", video.CodecTagString))
 		}
-		if !strings.EqualFold(video.PixFmt, "yuv420p") {
-			issues = append(issues, fmt.Sprintf("pixel format %s is not 8-bit 4:2:0", video.PixFmt))
+		if !slices.Contains(browserSafePixelFormats, strings.ToLower(video.PixFmt)) {
+			issues = append(issues, fmt.Sprintf("pixel format %s is not 8-bit or 10-bit 4:2:0", video.PixFmt))
 		}
 		if c.VideoGapCount > 0 {
 			issues = append(issues, fmt.Sprintf("video timeline has %d gaps totalling %.3fs, so it is not constant frame rate", c.VideoGapCount, c.VideoGapSeconds))

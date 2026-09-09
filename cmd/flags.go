@@ -72,6 +72,30 @@ func (t *trackFlag) Set(v string) error {
 
 func (t *trackFlag) Type() string { return "all|none|index|lang" }
 
+type oneTrackFlag struct {
+	target *probe.TrackSelector
+}
+
+func newOneTrack(target *probe.TrackSelector) *oneTrackFlag {
+	return &oneTrackFlag{target: target}
+}
+
+func (t *oneTrackFlag) String() string { return t.target.String() }
+
+func (t *oneTrackFlag) Set(v string) error {
+	sel, err := probe.ParseTrackSelector(v)
+	if err != nil {
+		return err
+	}
+	if raw := sel.String(); raw == probe.SelectAll || raw == probe.SelectNone {
+		return fmt.Errorf("must name a single track, so %s is not allowed", raw)
+	}
+	*t.target = sel
+	return nil
+}
+
+func (t *oneTrackFlag) Type() string { return "index|lang" }
+
 type scaleFlag struct {
 	target *string
 }

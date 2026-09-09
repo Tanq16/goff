@@ -2,6 +2,7 @@ package ops
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/Tanq16/goff/internal/probe"
@@ -107,6 +108,28 @@ func mapStreams(args []string, streams []probe.StreamInfo) []string {
 		args = append(args, "-map", fmt.Sprintf("0:%d", s.Index))
 	}
 	return args
+}
+
+func promoteDefaultAudio(plan *trackPlan, p *probe.ProbeResult, sel probe.TrackSelector) (bool, error) {
+	if sel.String() == "" || p == nil {
+		return false, nil
+	}
+	picked, err := p.SelectAudio(sel)
+	if err != nil {
+		return false, err
+	}
+	if len(picked) != 1 {
+		return false, fmt.Errorf("%s matches %d audio tracks, so it cannot name the default", sel, len(picked))
+	}
+	index := slices.IndexFunc(plan.Audio, func(s probe.StreamInfo) bool { return s.Index == picked[0].Index })
+	if index < 0 {
+		return false, fmt.Errorf("audio stream %d is not among the kept tracks, so it cannot be the default", picked[0].Index)
+	}
+	ordered := make([]probe.StreamInfo, 0, len(plan.Audio))
+	ordered = append(ordered, plan.Audio[index])
+	ordered = append(ordered, plan.Audio[:index]...)
+	plan.Audio = append(ordered, plan.Audio[index+1:]...)
+	return true, nil
 }
 
 func audioDispositions(args []string, count int) []string {
