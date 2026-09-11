@@ -13,7 +13,7 @@ Playability in a desktop player is a separate goal with different answers. When 
 These are settled preferences. Do not re-derive them per file and do not offer alternatives.
 
 - **MP4 is the container.** Always, for anything a browser touches.
-- **HEVC is the re-encode target.** It is the reason the library fits on disk. Anything outside H.264, HEVC, and AV1 gets re-encoded to HEVC. All three are accepted terminal states, so H.264 and AV1 already present are never re-encoded for their codec alone.
+- **HEVC is the re-encode target.** It is the reason the library fits on disk. H.264, HEVC, and AV1 are all accepted terminal states, so anything outside those three becomes HEVC and none of the three is ever re-encoded for its codec alone.
 - **10-bit stays.** `yuv420p10le` is browser-safe. Never spend a re-encode converting 10-bit to 8-bit. When re-encoding for another reason, pass `--keep-10bit` if the source is 10-bit.
 - **Subtitles never live inside the video.** No `mov_text`, no burned-in text, no embedded track of any kind, in any output. Every subtitle becomes a sidecar `.vtt` file. This means `--sub-track none` on every `remux` and every `compress`, without exception, because both commands keep and transcode subtitles by default.
 - **Text subtitles only.** Bitmap subtitles (`hdmv_pgs_subtitle`, `dvd_subtitle`, and similar) are ignored. They cannot become VTT.
@@ -65,7 +65,6 @@ issues on the file
     │
     ├─ audio codec, channel count, or sample rate wrong
     │       └─► compress --copy-video       video untouched, tens of seconds
-    │           this covers AV1 with Opus audio, which is common
     │
     ├─ audio or video timeline gaps
     │       └─► compress --copy-video       rebuilds the audio timeline
@@ -148,8 +147,8 @@ goff compress <file> --sub-track none --crf 24 --keep-10bit
 goff compress <file> --sub-track none --keep-10bit --keep-hifi-audio   # archive, not browser-safe
 ```
 
-- `--copy-video` rewrites the container and the audio and leaves every video packet untouched. Tens of seconds per file against hours for a full re-encode. This is the repair tool, and it is the whole answer for an AV1 file whose only fault is its audio.
-- `--copy-audio` does the reverse, passing the audio through and re-encoding only the video. It cannot produce a browser-safe file from non-AAC audio, so it belongs to archive copies rather than to this workflow.
+- `--copy-video` rewrites the container and the audio and leaves every video packet untouched. Tens of seconds per file against hours for a full re-encode. This is the repair tool.
+- `--copy-audio` passes the audio through untouched and re-encodes only the video. It cannot reach AAC from anything else; archive copies only.
 - `--crf 24` is the near-lossless setting for a deliberate shrink. Lower is better quality; the codec default applies when the flag is absent.
 - `--height` defaults to 1080, so a 4K source is downscaled unless told otherwise. Set it explicitly when the source resolution must survive.
 - `--keep-10bit` keeps the source bit depth and skips HDR tone-mapping. Pass it whenever the source is 10-bit.
@@ -224,7 +223,7 @@ Two consequences drive the invariants above. Sidecar VTT is the only subtitle pa
 
 **Safari cannot play Opus in an MP4 container.** No device, no version. This is independent of the video codec, which is why an AV1 file carrying Opus still needs `compress --copy-video` even though its video is already acceptable.
 
-**AV1 needs a hardware decoder in Safari,** meaning an M3 or later Mac, an iPhone 15 Pro or later, or the M4 iPad Pro. Chrome 70+, Firefox 67+, and Edge 121+ decode it in software on every platform. AV1 is accepted flatly here regardless, since the devices that cannot play it are the ones being aged out.
+**AV1 needs a hardware decoder in Safari,** meaning an M3 or later Mac, an iPhone 15 Pro or later, or the M4 iPad Pro. Chrome 70+, Firefox 67+, and Edge 121+ decode it in software on every platform. The invariants accept AV1 regardless of that gap.
 
 **10-bit is not gated by any engine.** Chromium's `IsDecoderHevcProfileSupported` in `media/base/supported_types.cc` delegates entirely to the platform decoder with no bit-depth branch, and Firefox's `dom/media/platforms/PDMFactory.cpp` hands HEVC to the platform module with no profile restriction. The real limit is whether the viewing device decodes Main 10 in hardware.
 
