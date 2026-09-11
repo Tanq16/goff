@@ -3,6 +3,7 @@ package ops
 import (
 	"cmp"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -10,6 +11,40 @@ import (
 )
 
 const AudioSyncFilter = "aresample=async=1:first_pts=0"
+
+type presetStop struct {
+	word   string
+	svtav1 string
+}
+
+var presetLadder = []presetStop{
+	{"ultrafast", "13"},
+	{"superfast", "12"},
+	{"veryfast", "11"},
+	{"faster", "10"},
+	{"fast", "8"},
+	{"medium", "6"},
+	{"slow", "4"},
+	{"slower", "3"},
+	{"veryslow", "2"},
+	{"placebo", "0"},
+}
+
+func EncoderPresets() []string {
+	words := make([]string, 0, len(presetLadder))
+	for _, stop := range presetLadder {
+		words = append(words, stop.word)
+	}
+	return words
+}
+
+func svtav1Preset(word string) string {
+	i := slices.IndexFunc(presetLadder, func(s presetStop) bool { return s.word == word })
+	if i < 0 {
+		return "6"
+	}
+	return presetLadder[i].svtav1
+}
 
 func ParseSizeBudget(s string) (float64, error) {
 	trimmed := strings.TrimSpace(strings.ToLower(s))
@@ -32,6 +67,7 @@ func ParseSizeBudget(s string) (float64, error) {
 type VideoOptimizeOpts struct {
 	Codec         string
 	CRF           int
+	FPS           int
 	Lossless      bool
 	Preset        string
 	MaxHeight     int
@@ -43,6 +79,7 @@ type VideoOptimizeOpts struct {
 	Keep10Bit     bool
 	KeepHiFiAudio bool
 	CopyVideo     bool
+	CopyAudio     bool
 	AudioTracks   probe.TrackSelector
 	SubTracks     probe.TrackSelector
 }
@@ -63,6 +100,7 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 	}
 
 	args := []string{"-i", inputPath, "-map", fmt.Sprintf("0:%d", video.Index)}
+	notes := plan.Notes
 	outputIsHEVC := false
 
 	if opts.CopyVideo {
@@ -88,8 +126,9 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 				crf = 32
 			}
 			if preset == "" {
-				preset = "6"
+				preset = "medium"
 			}
+			preset = svtav1Preset(preset)
 		case "h264", "libx264", "x264":
 			videoEncoder = "libx264"
 			losslessArgs = []string{"-crf", "0"}
@@ -147,6 +186,15 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 			args = append(args, "-pix_fmt", "yuv420p")
 		}
 		args = append(args, "-fps_mode", "cfr")
+
+		if opts.FPS > 0 {
+			source := probe.ParseFPS(video.RFrameRate)
+			if source > 0 && float64(opts.FPS) >= source {
+				notes = append(notes, fmt.Sprintf("--fps %d is not below the source rate of %.2ffps, so the source rate is kept", opts.FPS, source))
+			} else {
+				args = append(args, "-r", strconv.Itoa(opts.FPS))
+			}
+		}
 	}
 
 	args = tagHEVC(args, outputIsHEVC, targetExt)
@@ -156,14 +204,18 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 		args = append(args, "-an")
 	} else {
 		args = mapStreams(args, audio)
-		args = append(args,
-			"-c:a", "aac",
-			"-b:a", cmp.Or(opts.AudioBitrate, "128k"),
-			"-ar", strconv.Itoa(cmp.Or(opts.AudioRate, 48000)),
-			"-af", AudioSyncFilter,
-		)
-		if !keepChannels {
-			args = append(args, "-ac", "2")
+		if opts.CopyAudio {
+			args = append(args, "-c:a", "copy")
+		} else {
+			args = append(args,
+				"-c:a", "aac",
+				"-b:a", cmp.Or(opts.AudioBitrate, "128k"),
+				"-ar", strconv.Itoa(cmp.Or(opts.AudioRate, 48000)),
+				"-af", AudioSyncFilter,
+			)
+			if !keepChannels {
+				args = append(args, "-ac", "2")
+			}
 		}
 		args = audioDispositions(args, len(audio))
 	}
@@ -190,6 +242,6 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 		Args:      args,
 		Suffix:    suffix,
 		TargetExt: targetExt,
-		Notes:     plan.Notes,
+		Notes:     notes,
 	}, nil
 }
