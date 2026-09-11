@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"cmp"
 	"fmt"
 	"math"
 	"regexp"
@@ -30,11 +31,18 @@ func addJobsFlag(cmd *cobra.Command) {
 type enumFlag struct {
 	target  *string
 	allowed []string
+	label   string
 }
 
 func newEnum(target *string, def string, allowed ...string) *enumFlag {
 	*target = def
 	return &enumFlag{target: target, allowed: allowed}
+}
+
+func newLabeledEnum(target *string, def, label string, allowed ...string) *enumFlag {
+	e := newEnum(target, def, allowed...)
+	e.label = label
+	return e
 }
 
 func (e *enumFlag) String() string { return *e.target }
@@ -48,7 +56,7 @@ func (e *enumFlag) Set(v string) error {
 	return nil
 }
 
-func (e *enumFlag) Type() string { return strings.Join(e.allowed, "|") }
+func (e *enumFlag) Type() string { return cmp.Or(e.label, strings.Join(e.allowed, "|")) }
 
 type trackFlag struct {
 	target *probe.TrackSelector
