@@ -78,6 +78,8 @@ goff compress input.mkv --height 720          # 1280x720 cap, HDR sources includ
 goff compress master.mov --lossless           # no video quality loss, source resolution kept
 goff compress input.mkv --keep-10bit --keep-hifi-audio   # for VLC rather than a browser
 goff compress drifting.mp4 --copy-video       # repair audio sync, video untouched
+goff compress surround.mkv --copy-audio       # 5.1 or hi-fi audio passed through untouched
+goff compress film.mkv --fps 24               # cap the frame rate, cutting frames and encode time
 goff compress input.mkv --preset slow --audio-bitrate 192k --audio-rate 44100
 ```
 
@@ -165,6 +167,8 @@ goff inspect movie.mkv
 goff inspect movie.mkv --json     # the same reading as a data contract
 goff inspect movie.mp4 --check    # timeline gaps, A/V drift, browser playability
 ```
+
+[docs/browser-safe.md](docs/browser-safe.md) is the runbook for taking an arbitrary set of files to a browser-safe state, covering what `--check` reports and the cheapest fix for each issue it names.
 
 ### Scripting and agents
 
