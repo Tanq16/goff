@@ -14,6 +14,8 @@ const DriftToleranceSeconds = 0.1
 
 const gapPeriodTolerance = 1.5
 
+var browserSafeVideoCodecs = []string{"h264", "hevc", "av1"}
+
 var browserSafePixelFormats = []string{"yuv420p", "yuv420p10le"}
 
 type Conformance struct {
@@ -185,8 +187,8 @@ func (p *ProbeResult) browserIssues(c *Conformance) []string {
 		issues = append(issues, "no video stream")
 	} else {
 		codec := strings.ToLower(video.CodecName)
-		if codec != "h264" && codec != "hevc" {
-			issues = append(issues, fmt.Sprintf("video codec %s is not widely playable in browsers", video.CodecName))
+		if !slices.Contains(browserSafeVideoCodecs, codec) {
+			issues = append(issues, fmt.Sprintf("video codec %s is not H.264, HEVC, or AV1", video.CodecName))
 		}
 		if codec == "hevc" && !strings.EqualFold(video.CodecTagString, "hvc1") {
 			issues = append(issues, fmt.Sprintf("HEVC is tagged %s, and Safari plays only hvc1", video.CodecTagString))
