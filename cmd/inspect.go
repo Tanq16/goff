@@ -2,7 +2,8 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"strconv"
 
@@ -45,7 +46,7 @@ var inspectCmd = &cobra.Command{
 		}
 
 		if inspectFlags.json {
-			encoded, err := json.MarshalIndent(summary, "", "  ")
+			encoded, err := json.Marshal(summary, jsontext.WithIndent("  "))
 			if err != nil {
 				utils.PrintFatal("failed to encode the inspection as json", err)
 			}
