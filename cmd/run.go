@@ -388,21 +388,23 @@ dispatch:
 	}
 
 	wg.Wait()
-	g.Done()
+
+	var moved int64
+	failed := 0
+	for _, r := range results {
+		moved += r.OutSize
+		if r.Err != nil {
+			failed++
+		}
+	}
+	written := ""
+	if moved > 0 {
+		written = probe.FormatBytes(moved)
+	}
+	g.Done(written)
 
 	if ctx.Err() != nil && len(results) < len(files) {
 		utils.PrintWarn(fmt.Sprintf("%s cancelled: %d of %d files were never started", verb, len(files)-len(results), len(files)), nil)
-	}
-
-	var failed []fileResult
-	for _, r := range results {
-		if r.Err != nil {
-			failed = append(failed, r)
-		}
-	}
-
-	for _, r := range failed {
-		utils.PrintIndentedError(utils.FailureLine(filepath.Base(r.Input), r.Err), r.Err)
 	}
 
 	for _, r := range results {
@@ -415,7 +417,7 @@ dispatch:
 		printSummary(results)
 	}
 
-	if len(failed) > 0 {
+	if failed > 0 {
 		os.Exit(1)
 	}
 }

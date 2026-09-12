@@ -22,7 +22,7 @@ const UnitBytes Unit = ""
 const (
 	minWidth      = 24
 	defaultWidth  = 80
-	defaultHeight = 24
+	settledPrefix = 4
 	minBarWidth   = 8
 	maxBarWidth   = 30
 	sweepWidth    = 3
@@ -50,16 +50,6 @@ var render struct {
 
 var cursorGuard sync.Once
 
-func termHeight() int {
-	if _, h, err := term.GetSize(os.Stdout.Fd()); err == nil && h > 0 {
-		return h
-	}
-	if n, err := strconv.Atoi(os.Getenv("LINES")); err == nil && n > 0 {
-		return n
-	}
-	return defaultHeight
-}
-
 func termWidth() int {
 	if w, _, err := term.GetSize(os.Stdout.Fd()); err == nil && w > 0 {
 		return w
@@ -78,8 +68,9 @@ func hideCursorLocked() {
 		signals := make(chan os.Signal, 1)
 		signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 		go func() {
-			<-signals
-			ShowCursor()
+			for range signals {
+				ShowCursor()
+			}
 		}()
 	})
 	render.hidden = true
@@ -490,19 +481,28 @@ func (m *Meter) Fail(err error) {
 }
 
 func FailureLine(name string, err error) string {
-	return fmt.Sprintf("%s: %s", name, strings.Join(strings.Fields(fmt.Sprint(err)), " "))
+	reason := strings.Join(strings.Fields(fmt.Sprint(err)), " ")
+	return fitName(name, 2) + ": " + reason
+}
+
+func fitName(name string, tail int) string {
+	if OutputPersists() {
+		return name
+	}
+	return clip(name, termWidth()-settledPrefix-tail)
 }
 
 func SettledLine(name, amount string, elapsed time.Duration, average string) string {
-	parts := []string{name}
+	var tail []string
 	if amount != "" {
-		parts = append(parts, amount)
+		tail = append(tail, amount)
 	}
-	parts = append(parts, FormatElapsed(elapsed))
+	tail = append(tail, FormatElapsed(elapsed))
 	if average != "" {
-		parts = append(parts, "avg "+average)
+		tail = append(tail, "avg "+average)
 	}
-	return strings.Join(parts, "  ")
+	rest := strings.Join(tail, "  ")
+	return fitName(name, lipgloss.Width(rest)+2) + "  " + rest
 }
 
 type Group struct {
@@ -512,7 +512,6 @@ type Group struct {
 	start    time.Time
 	ok       int
 	failed   int
-	lines    int
 	collapse bool
 	counter  *Meter
 }
@@ -550,9 +549,6 @@ func (g *Group) settle(success, failure string, err error) {
 	}
 	counter := g.counter
 	collapse := g.collapse
-	if failure != "" || !collapse {
-		g.lines++
-	}
 	g.mu.Unlock()
 
 	if counter != nil {
@@ -575,35 +571,34 @@ func (g *Group) Fail(name string, err error) {
 	g.settle("", FailureLine(name, err), err)
 }
 
-func (g *Group) Done() {
+func (g *Group) Done(moved string) {
 	g.mu.Lock()
 	counter := g.counter
 	g.counter = nil
+	ok, failed := g.ok, g.failed
 	g.mu.Unlock()
 
 	if counter != nil {
 		counter.Close()
 	}
-
-	g.mu.Lock()
-	lines, ok, failed := g.lines, g.ok, g.failed
-	g.lines = 0
-	g.mu.Unlock()
-
-	if lines < termHeight()-2 {
-		ClearLines(lines)
-	}
-
 	if ok+failed <= 1 && failed == 0 {
 		return
 	}
+
 	elapsed := time.Since(g.start)
 	average := FormatRate(float64(ok+failed)/max(elapsed.Seconds(), 0.001), Unit(g.noun))
+	count := fmt.Sprintf("%d %s", ok, g.noun)
 	if failed > 0 {
-		PrintError(SettledLine(g.label, fmt.Sprintf("%d ok, %d failed", ok, failed), elapsed, average), nil)
+		count = fmt.Sprintf("%d ok, %d failed", ok, failed)
+	}
+	if moved != "" {
+		count += "  " + moved
+	}
+	if failed > 0 {
+		PrintError(SettledLine(g.label, count, elapsed, average), nil)
 		return
 	}
-	PrintInfo(SettledLine(g.label, fmt.Sprintf("%d %s", ok, g.noun), elapsed, average))
+	PrintInfo(SettledLine(g.label, count, elapsed, average))
 }
 
 var byteUnits = []string{"B", "KB", "MB", "GB", "TB", "PB"}
