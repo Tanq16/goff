@@ -38,13 +38,13 @@ func RunFFmpeg(ctx context.Context, args []string, totalDurationSec float64, onP
 
 	wg.Go(func() {
 		if err := ScanProgress(stdoutPipe, totalDurationSec, onProgress); err != nil {
-			log.Error().Err(err).Msg("stopped reading ffmpeg progress")
+			log.Debug().Err(err).Msg("stopped reading ffmpeg progress")
 		}
 	})
 
 	wg.Go(func() {
 		if _, err := io.Copy(&stderrBuf, stderrPipe); err != nil {
-			log.Error().Err(err).Msg("stopped reading ffmpeg stderr")
+			log.Debug().Err(err).Msg("stopped reading ffmpeg stderr")
 		}
 	})
 
