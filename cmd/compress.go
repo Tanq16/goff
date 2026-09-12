@@ -5,7 +5,6 @@ import (
 
 	"github.com/Tanq16/goff/internal/ops"
 	"github.com/Tanq16/goff/internal/probe"
-	"github.com/Tanq16/goff/utils"
 )
 
 var compressFlags struct {
@@ -42,9 +41,6 @@ var compressCmd = &cobra.Command{
   goff compress rip.mkv --audio-track eng --sub-track none`,
 	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		if compressFlags.copyVideo && compressFlags.copyAudio {
-			utils.PrintFatal("--copy-video with --copy-audio re-encodes nothing; use goff remux", nil)
-		}
 		runFiles("compress", args, func(input string, p *probe.ProbeResult) (*ops.OpResult, error) {
 			return ops.BuildVideoOptimize(input, p, ops.VideoOptimizeOpts{
 				Codec:         compressFlags.codec,
@@ -85,6 +81,7 @@ func init() {
 	compressCmd.Flags().Var(newTrack(&compressFlags.audioTracks, probe.AllTracks()), "audio-track", "Audio tracks to keep, by stream index or language")
 	compressCmd.Flags().Var(newTrack(&compressFlags.subTracks, probe.AllTracks()), "sub-track", "Subtitle tracks to keep, by stream index or language")
 
+	compressCmd.MarkFlagsMutuallyExclusive("copy-video", "copy-audio")
 	compressCmd.MarkFlagsMutuallyExclusive("crf", "size", "lossless")
 	compressCmd.MarkFlagsMutuallyExclusive("height", "lossless")
 	compressCmd.MarkFlagsMutuallyExclusive("fps", "lossless")
