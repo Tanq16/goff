@@ -3,7 +3,6 @@ package utils
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"charm.land/lipgloss/v2"
 	"github.com/rs/zerolog/log"
@@ -33,7 +32,7 @@ func PrintInfo(msg string) {
 		log.Info().Msg(msg)
 		return
 	}
-	lipgloss.Println(infoStyle.Render("→ " + msg))
+	emit(infoStyle.Render("→ " + msg))
 }
 
 func PrintSuccess(msg string) {
@@ -41,7 +40,7 @@ func PrintSuccess(msg string) {
 		log.Info().Msg(msg)
 		return
 	}
-	lipgloss.Println(successStyle.Render("✓ " + msg))
+	emit(successStyle.Render("✓ " + msg))
 }
 
 func PrintError(msg string, err error) {
@@ -53,11 +52,12 @@ func PrintError(msg string, err error) {
 		}
 		return
 	}
-	lipgloss.Println(errorStyle.Render("✗ " + msg))
+	emit(errorStyle.Render("✗ " + msg))
 }
 
 func PrintFatal(msg string, err error) {
 	PrintError(msg, err)
+	ShowCursor()
 	os.Exit(1)
 }
 
@@ -70,11 +70,11 @@ func PrintWarn(msg string, err error) {
 		}
 		return
 	}
-	lipgloss.Println(warnStyle.Render("! " + msg))
+	emit(warnStyle.Render("! " + msg))
 }
 
 func PrintGeneric(msg string) {
-	lipgloss.Println(msg)
+	emit(msg)
 }
 
 func PrintRunning(msg string) {
@@ -82,7 +82,7 @@ func PrintRunning(msg string) {
 		log.Info().Msg(msg)
 		return
 	}
-	lipgloss.Println(infoStyle.Render("↻ " + msg))
+	emit(infoStyle.Render("↻ " + msg))
 }
 
 func PrintIndentedSuccess(msg string) {
@@ -90,7 +90,7 @@ func PrintIndentedSuccess(msg string) {
 		log.Info().Msg(msg)
 		return
 	}
-	lipgloss.Println(successStyle.Render("  ✓ " + msg))
+	emit(successStyle.Render("  ✓ " + msg))
 }
 
 func PrintIndentedError(msg string, err error) {
@@ -102,7 +102,7 @@ func PrintIndentedError(msg string, err error) {
 		}
 		return
 	}
-	lipgloss.Println(errorStyle.Render("  ✗ " + msg))
+	emit(errorStyle.Render("  ✗ " + msg))
 }
 
 func PrintIndentedWarn(msg string, err error) {
@@ -114,7 +114,7 @@ func PrintIndentedWarn(msg string, err error) {
 		}
 		return
 	}
-	lipgloss.Println(warnStyle.Render("  ! " + msg))
+	emit(warnStyle.Render("  ! " + msg))
 }
 
 func PrintIndentedRunning(msg string) {
@@ -122,7 +122,7 @@ func PrintIndentedRunning(msg string) {
 		log.Info().Msg(msg)
 		return
 	}
-	lipgloss.Println(infoStyle.Render("  ↻ " + msg))
+	emit(infoStyle.Render("  ↻ " + msg))
 }
 
 func OutputPersists() bool {
@@ -140,26 +140,4 @@ func ClearLines(n int) {
 
 func ClearPreviousLine() {
 	ClearLines(1)
-}
-
-func PrintProgress(label string, percent int, currentSeconds, totalSeconds float64) {
-	percent = min(percent, 100)
-
-	if GlobalDebugFlag {
-		log.Info().
-			Int("percent", percent).
-			Float64("currentSeconds", currentSeconds).
-			Float64("totalSeconds", totalSeconds).
-			Msg(label)
-		return
-	}
-	if !StdoutIsTerminal {
-		lipgloss.Println(fmt.Sprintf("  ↻ %s: %d%%", label, percent))
-		return
-	}
-
-	const barWidth = 10
-	filled := barWidth * percent / 100
-	bar := strings.Repeat("⣿", filled) + strings.Repeat("⣀", barWidth-filled)
-	lipgloss.Println(infoStyle.Render(fmt.Sprintf("  ↻ %s: %s %d%%", label, bar, percent)))
 }
