@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -28,10 +27,16 @@ type fileResult struct {
 	Outputs  []string
 	OrigSize int64
 	OutSize  int64
+	MediaSec float64
 	Duration time.Duration
 	Notes    []string
 	Err      error
 }
+
+const (
+	mediaUnit       = utils.Unit("s")
+	perFileMeterMax = 15
+)
 
 func printNotes(notes []string) {
 	for _, note := range notes {
@@ -57,9 +62,8 @@ func outcome(err error) string {
 }
 
 func failure(verb, label string, err error) (string, error) {
-	var invalid buildError
-	if errors.As(err, &invalid) {
-		return fmt.Sprintf("cannot %s %s: %v", verb, label, err), nil
+	if invalid, ok := errors.AsType[buildError](err); ok {
+		return fmt.Sprintf("cannot %s %s: %v", verb, label, invalid.error), err
 	}
 	return fmt.Sprintf("%s %s for %s", verb, outcome(err), label), err
 }
@@ -166,57 +170,28 @@ func prepare(ctx context.Context, input string, build buildFunc) (*ops.OpResult,
 	return res, p, []string{outPath}, nil
 }
 
-func encodeWithProgress(ctx context.Context, verb string, label string, args []string, totalSec float64) (time.Duration, error) {
-	utils.PrintRunning(fmt.Sprintf("%s %s", verb, label))
-
-	var latest atomic.Pointer[engine.ProgressUpdate]
-	latest.Store(&engine.ProgressUpdate{TotalSeconds: totalSec})
-	var printed atomic.Bool
-	done := make(chan struct{})
-	var bar sync.WaitGroup
-
-	show := func() {
-		p := latest.Load()
-		utils.PrintProgress(label, p.Percent, p.CurrentSeconds, p.TotalSeconds)
-	}
-
-	bar.Go(func() {
-		t := time.NewTicker(1 * time.Second)
-		defer t.Stop()
-		firstTick := true
-		for {
-			select {
-			case <-done:
-				return
-			case <-t.C:
-				if !firstTick {
-					utils.ClearPreviousLine()
-				}
-				firstTick = false
-				printed.Store(true)
-				show()
-			}
-		}
+func encode(ctx context.Context, m *utils.Meter, args []string, totalSec float64) error {
+	return engine.RunFFmpeg(ctx, args, totalSec, func(prog engine.ProgressUpdate) {
+		m.Set(int64(prog.CurrentSeconds))
 	})
+}
 
-	start := time.Now()
-	err := engine.RunFFmpeg(ctx, args, totalSec, func(prog engine.ProgressUpdate) {
-		latest.Store(&prog)
-	})
-	elapsed := time.Since(start)
+func encodeRate(mediaSec float64, elapsed time.Duration) string {
+	return utils.FormatRate(mediaSec/max(elapsed.Seconds(), 0.001), mediaUnit)
+}
 
-	close(done)
-	bar.Wait()
-	if printed.Load() {
-		utils.ClearPreviousLine()
+func outputName(label string, outputs []string, base bool) string {
+	if len(outputs) != 1 {
+		return fmt.Sprintf("%s → %d files", label, len(outputs))
 	}
-	if err == nil {
-		show()
-		utils.ClearPreviousLine()
+	if base {
+		return fmt.Sprintf("%s → %s", label, filepath.Base(outputs[0]))
 	}
-	utils.ClearLines(1)
+	return fmt.Sprintf("%s → %s", label, outputs[0])
+}
 
-	return elapsed, err
+func sizeChange(orig, out int64) string {
+	return fmt.Sprintf("%s → %s", probe.FormatBytes(orig), probe.FormatBytes(out))
 }
 
 func fileSize(path string) int64 {
@@ -256,7 +231,10 @@ func runSingle(verb string, input string, build buildFunc) {
 
 	printNotes(res.Notes)
 
-	elapsed, err := encodeWithProgress(ctx, verb, label, encodeArgs(res, outPaths), p.TotalDuration())
+	mediaSec := p.TotalDuration()
+	m := utils.NewMeter(verb, label, int64(mediaSec), mediaUnit)
+	err = encode(ctx, m, encodeArgs(res, outPaths), mediaSec)
+	elapsed := m.Close()
 	if err == nil {
 		err = postProcess(res, outPaths)
 	}
@@ -265,18 +243,17 @@ func runSingle(verb string, input string, build buildFunc) {
 		utils.PrintFatal(failure(verb, label, err))
 	}
 
-	rounded := elapsed.Round(100 * time.Millisecond)
+	utils.PrintSuccess(utils.SettledLine(
+		outputName(label, outPaths, false),
+		sizeChange(p.Format.Size(), totalSize(outPaths)),
+		elapsed,
+		encodeRate(mediaSec, elapsed),
+	))
 	if len(outPaths) == 1 {
-		utils.PrintSuccess(fmt.Sprintf("%s → %s (%s, %s → %s)",
-			label, outPaths[0], rounded,
-			probe.FormatBytes(p.Format.Size()), probe.FormatBytes(fileSize(outPaths[0]))))
 		return
 	}
-	utils.PrintSuccess(fmt.Sprintf("%s → %d files (%s, %s → %s)",
-		label, len(outPaths), rounded,
-		probe.FormatBytes(p.Format.Size()), probe.FormatBytes(totalSize(outPaths))))
 	for _, out := range outPaths {
-		utils.PrintIndentedSuccess(fmt.Sprintf("%s (%s)", out, probe.FormatBytes(fileSize(out))))
+		utils.PrintIndentedSuccess(fmt.Sprintf("%s  %s", out, probe.FormatBytes(fileSize(out))))
 	}
 }
 
@@ -293,7 +270,9 @@ func runComposed(verb string, namingInput string, res *ops.OpResult, totalSec fl
 	defer stop()
 
 	label := filepath.Base(namingInput)
-	elapsed, err := encodeWithProgress(ctx, verb, label, append(res.Args, outPath), totalSec)
+	m := utils.NewMeter(verb, label, int64(totalSec), mediaUnit)
+	err = encode(ctx, m, append(res.Args, outPath), totalSec)
+	elapsed := m.Close()
 	if res.Cleanup != nil {
 		res.Cleanup()
 	}
@@ -305,59 +284,95 @@ func runComposed(verb string, namingInput string, res *ops.OpResult, totalSec fl
 		utils.PrintFatal(failure(verb, label, err))
 	}
 
-	utils.PrintSuccess(fmt.Sprintf("%s → %s (%s, %s)",
-		label, outPath, elapsed.Round(100*time.Millisecond), probe.FormatBytes(fileSize(outPath))))
+	utils.PrintSuccess(utils.SettledLine(
+		outputName(label, []string{outPath}, false),
+		probe.FormatBytes(fileSize(outPath)),
+		elapsed,
+		encodeRate(totalSec, elapsed),
+	))
 }
 
 func runMany(verb string, files []string, build buildFunc) {
 	workers := max(sharedFlags.jobs, 1)
-	utils.PrintRunning(fmt.Sprintf("%s: %d files, %d workers", verb, len(files), workers))
+	perFile := utils.OutputPersists() || (workers == 1 && len(files) <= perFileMeterMax)
 
 	ctx, stop := runContext()
 	defer stop()
+
+	g := utils.NewGroup(verb, "files")
+	if !perFile && len(files) > perFileMeterMax {
+		g.Collapse()
+	}
+	var counter *utils.Meter
+	if !perFile {
+		counter = g.Count(verb, int64(len(files)))
+		if workers > 1 {
+			counter.Context(fmt.Sprintf("%d workers", workers))
+		}
+	}
 
 	sem := make(chan struct{}, workers)
 	var wg sync.WaitGroup
 
 	var mu sync.Mutex
 	var results []fileResult
-	lineCount := 0
 
 	record := func(r fileResult) {
 		mu.Lock()
-		defer mu.Unlock()
 		results = append(results, r)
-		lineCount++
+		mu.Unlock()
 		if r.Err != nil {
-			utils.PrintIndentedError(failure(verb, filepath.Base(r.Input), r.Err))
+			g.Fail(filepath.Base(r.Input), r.Err)
 			return
 		}
-		utils.PrintIndentedSuccess(successLine(r))
+		g.OK(
+			outputName(filepath.Base(r.Input), r.Outputs, true),
+			sizeChange(r.OrigSize, r.OutSize),
+			r.Duration,
+			encodeRate(r.MediaSec, r.Duration),
+		)
 	}
 
+dispatch:
 	for _, input := range files {
+		select {
+		case <-ctx.Done():
+			break dispatch
+		default:
+		}
 		sem <- struct{}{}
 		wg.Go(func() {
 			defer func() { <-sem }()
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+			label := filepath.Base(input)
+			if counter != nil && workers == 1 {
+				counter.Context(label)
+			}
 			start := time.Now()
 			res, p, outPaths, err := prepare(ctx, input, build)
 			if err != nil {
 				record(fileResult{Input: input, Err: err})
 				return
 			}
-			label := filepath.Base(input)
+			mediaSec := p.TotalDuration()
 			args := encodeArgs(res, outPaths)
-			if utils.OutputPersists() {
-				_, err = encodeWithProgress(ctx, verb, label, args, p.TotalDuration())
+			if perFile {
+				m := g.Meter(verb, label, int64(mediaSec), mediaUnit)
+				err = encode(ctx, m, args, mediaSec)
+				m.Close()
 			} else {
-				err = engine.RunFFmpeg(ctx, args, p.TotalDuration(), nil)
+				err = engine.RunFFmpeg(ctx, args, mediaSec, nil)
 			}
 			if err == nil {
 				err = postProcess(res, outPaths)
 			}
 			if err != nil {
 				discard(res, outPaths)
-				record(fileResult{Input: input, OrigSize: p.Format.Size(), Duration: time.Since(start), Err: err})
+				record(fileResult{Input: input, OrigSize: p.Format.Size(), MediaSec: mediaSec, Duration: time.Since(start), Err: err})
 				return
 			}
 			record(fileResult{
@@ -365,6 +380,7 @@ func runMany(verb string, files []string, build buildFunc) {
 				Outputs:  outPaths,
 				OrigSize: p.Format.Size(),
 				OutSize:  totalSize(outPaths),
+				MediaSec: mediaSec,
 				Duration: time.Since(start),
 				Notes:    res.Notes,
 			})
@@ -372,7 +388,11 @@ func runMany(verb string, files []string, build buildFunc) {
 	}
 
 	wg.Wait()
-	utils.ClearLines(lineCount + 1)
+	g.Done()
+
+	if ctx.Err() != nil && len(results) < len(files) {
+		utils.PrintWarn(fmt.Sprintf("%s cancelled: %d of %d files were never started", verb, len(files)-len(results), len(files)), nil)
+	}
 
 	var failed []fileResult
 	for _, r := range results {
@@ -381,15 +401,8 @@ func runMany(verb string, files []string, build buildFunc) {
 		}
 	}
 
-	if len(failed) > 0 {
-		utils.PrintError(fmt.Sprintf("%s: %d of %d files failed", verb, len(failed), len(files)), nil)
-		if !utils.OutputPersists() {
-			for _, r := range failed {
-				utils.PrintIndentedError(failure(verb, filepath.Base(r.Input), r.Err))
-			}
-		}
-	} else {
-		utils.PrintSuccess(fmt.Sprintf("%s: %d files completed", verb, len(files)))
+	for _, r := range failed {
+		utils.PrintIndentedError(utils.FailureLine(filepath.Base(r.Input), r.Err), r.Err)
 	}
 
 	for _, r := range results {
@@ -405,14 +418,6 @@ func runMany(verb string, files []string, build buildFunc) {
 	if len(failed) > 0 {
 		os.Exit(1)
 	}
-}
-
-func successLine(r fileResult) string {
-	label := filepath.Base(r.Input)
-	if len(r.Outputs) == 1 {
-		return fmt.Sprintf("%s → %s (%s)", label, filepath.Base(r.Outputs[0]), probe.FormatBytes(r.OutSize))
-	}
-	return fmt.Sprintf("%s → %d files (%s)", label, len(r.Outputs), probe.FormatBytes(r.OutSize))
 }
 
 func printSummary(results []fileResult) {
@@ -432,7 +437,7 @@ func printSummary(results []fileResult) {
 			probe.FormatBytes(r.OrigSize),
 			probe.FormatBytes(r.OutSize),
 			savings,
-			r.Duration.Round(100 * time.Millisecond).String(),
+			utils.FormatElapsed(r.Duration),
 		})
 	}
 	utils.PrintTable(headers, rows)
