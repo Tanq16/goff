@@ -172,7 +172,7 @@ goff inspect movie.mp4 --check    # timeline gaps, A/V drift, browser playabilit
 
 ### Scripting and agents
 
-Styled output is a property of the destination rather than a flag: piping any command anywhere strips the colors and keeps every progress line instead of redrawing one. `--debug` swaps the styled tier for structured logs, and `inspect --json` emits a stable struct instead of a table to scrape:
+Styled output is a property of the destination rather than a flag: piping any command anywhere strips the colors and keeps every progress line instead of redrawing one. On a terminal a run given several inputs shows a single meter counting files, so a large batch reports its position instead of scrolling one line per file. That becomes one meter per file when `--jobs 1` and at most 15 inputs make the run sequential and short enough to watch. `--debug` swaps the styled tier for structured logs, and `inspect --json` emits a stable struct instead of a table to scrape:
 
 ```bash
 goff compress video.mp4 --debug
@@ -180,7 +180,7 @@ goff inspect video.mp4 --json | jq '.streams[] | select(.type == "audio")'
 goff inspect video.mp4 --json --check | jq '.conformance.browserSafe'
 ```
 
-Under `--debug`, an encode reports progress as one JSON object a second carrying `percent`, `currentSeconds`, and `totalSeconds`, with a final object at completion. A run given several inputs emits those per file and drops the summary table, which the normal tier keeps even when piped. A parent process reads those objects rather than scraping the bar, and a tool wanting goff's encode contract runs the binary rather than reproducing its FFmpeg arguments.
+Under `--debug`, an encode reports progress as one JSON object a second carrying `current`, `total`, `unit`, `percent`, `rate`, and `eta`, with `message` naming the file and `percent` absent when the source duration is unknown. A run given several inputs interleaves those per file and drops the summary table, which the normal tier keeps even when piped. A parent process reads those objects rather than scraping the bar, and a tool wanting goff's encode contract runs the binary rather than reproducing its FFmpeg arguments.
 
 ## Notes
 
