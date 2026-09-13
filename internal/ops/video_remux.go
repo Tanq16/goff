@@ -28,10 +28,13 @@ func BuildVideoRemux(inputPath string, p *probe.ProbeResult, opts VideoRemuxOpts
 		return nil, err
 	}
 
-	args := []string{"-i", inputPath}
+	var videos []probe.StreamInfo
 	if p != nil {
-		args = mapStreams(args, p.VideoStreams())
+		videos = p.VideoStreams()
 	}
+
+	args := []string{"-i", inputPath}
+	args = mapStreams(args, videos)
 	args = mapStreams(args, plan.Audio)
 	args = mapStreams(args, plan.Subtitles)
 	args = mapStreams(args, plan.Attachments)
@@ -40,7 +43,7 @@ func BuildVideoRemux(inputPath string, p *probe.ProbeResult, opts VideoRemuxOpts
 	if promoted {
 		args = audioDispositions(args, len(plan.Audio))
 	}
-	args = tagHEVC(args, copiedVideoIsHEVC(p), targetExt)
+	args = tagHEVCTracks(args, videos, targetExt)
 	if len(plan.Subtitles) > 0 && plan.SubEncoder != "copy" {
 		args = append(args, "-c:s", plan.SubEncoder)
 	}

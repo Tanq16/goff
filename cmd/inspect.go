@@ -84,11 +84,18 @@ func printConformance(c *probe.Conformance) {
 
 	if c.BrowserSafe {
 		utils.PrintSuccess("Browser-safe")
-		return
+	} else {
+		utils.PrintWarn("Not browser-safe", nil)
+		for _, issue := range c.Issues {
+			utils.PrintIndentedWarn(issue, nil)
+		}
 	}
-	utils.PrintWarn("Not browser-safe", nil)
-	for _, issue := range c.Issues {
-		utils.PrintIndentedWarn(issue, nil)
+
+	if len(c.Advisories) > 0 {
+		utils.PrintInfo("Advisory, does not block playback")
+		for _, advisory := range c.Advisories {
+			utils.PrintIndentedWarn(advisory, nil)
+		}
 	}
 }
 

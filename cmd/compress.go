@@ -21,6 +21,8 @@ var compressFlags struct {
 	keepHiFiAudio bool
 	copyVideo     bool
 	copyAudio     bool
+	fitAudio      bool
+	fitVideo      bool
 	audioTracks   probe.TrackSelector
 	subTracks     probe.TrackSelector
 	sizeBudgetMB  float64
@@ -37,6 +39,8 @@ var compressCmd = &cobra.Command{
   goff compress movie.mkv --keep-10bit --keep-hifi-audio
   goff compress drifting.mp4 --copy-video
   goff compress surround.mkv --copy-audio
+  goff compress silent-tail.mkv --copy-video --fit-audio --sub-track none
+  goff compress black-tail.mkv --copy-video --fit-video --sub-track none
   goff compress film.mkv --fps 24
   goff compress rip.mkv --audio-track eng --sub-track none`,
 	Args: cobra.MinimumNArgs(1),
@@ -57,6 +61,8 @@ var compressCmd = &cobra.Command{
 				KeepHiFiAudio: compressFlags.keepHiFiAudio,
 				CopyVideo:     compressFlags.copyVideo,
 				CopyAudio:     compressFlags.copyAudio,
+				FitAudio:      compressFlags.fitAudio,
+				FitVideo:      compressFlags.fitVideo,
 				AudioTracks:   compressFlags.audioTracks,
 				SubTracks:     compressFlags.subTracks,
 			})
@@ -78,10 +84,14 @@ func init() {
 	compressCmd.Flags().BoolVar(&compressFlags.keepHiFiAudio, "keep-hifi-audio", false, "Keep the source channel layout instead of downmixing to stereo")
 	compressCmd.Flags().BoolVar(&compressFlags.copyVideo, "copy-video", false, "Copy the video stream untouched and re-encode only audio, to repair sync in seconds")
 	compressCmd.Flags().BoolVar(&compressFlags.copyAudio, "copy-audio", false, "Copy the audio streams untouched instead of re-encoding them to AAC")
+	compressCmd.Flags().BoolVar(&compressFlags.fitAudio, "fit-audio", false, "Pad or trim the audio so it ends with the video")
+	compressCmd.Flags().BoolVar(&compressFlags.fitVideo, "fit-video", false, "Trim the video so it ends with the audio")
 	compressCmd.Flags().Var(newTrack(&compressFlags.audioTracks, probe.AllTracks()), "audio-track", "Audio tracks to keep, by stream index or language")
 	compressCmd.Flags().Var(newTrack(&compressFlags.subTracks, probe.AllTracks()), "sub-track", "Subtitle tracks to keep, by stream index or language")
 
 	compressCmd.MarkFlagsMutuallyExclusive("copy-video", "copy-audio")
+	compressCmd.MarkFlagsMutuallyExclusive("fit-audio", "fit-video")
+	compressCmd.MarkFlagsMutuallyExclusive("copy-audio", "fit-audio")
 	compressCmd.MarkFlagsMutuallyExclusive("crf", "size", "lossless")
 	compressCmd.MarkFlagsMutuallyExclusive("height", "lossless")
 	compressCmd.MarkFlagsMutuallyExclusive("fps", "lossless")

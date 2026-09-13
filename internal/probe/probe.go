@@ -48,6 +48,7 @@ type StreamInfo struct {
 	ColorTransfer    string            `json:"color_transfer"`
 	ColorPrimaries   string            `json:"color_primaries"`
 	Duration         string            `json:"duration"`
+	StartTime        string            `json:"start_time"`
 	BitRate          string            `json:"bit_rate"`
 	Tags             map[string]string `json:"tags"`
 	Disposition      map[string]int    `json:"disposition"`

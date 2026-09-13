@@ -32,6 +32,7 @@ type Conformance struct {
 	AudioGapSeconds     float64  `json:"audioGapSeconds"`
 	BrowserSafe         bool     `json:"browserSafe"`
 	Issues              []string `json:"issues"`
+	Advisories          []string `json:"advisories"`
 }
 
 type timeline struct {
@@ -150,7 +151,7 @@ func Conform(ctx context.Context, filePath string, p *ProbeResult) (*Conformance
 			expected = 1 / (fps * timeBase)
 		}
 		t := measure(stamps[video.Index], expected, timeBase)
-		c.VideoStartSeconds = t.Start
+		c.VideoStartSeconds = streamStart(video, t.Start)
 		c.VideoContentSeconds = t.Content
 		c.VideoGapCount = t.GapCount
 		c.VideoGapSeconds = t.GapSeconds
@@ -158,7 +159,7 @@ func Conform(ctx context.Context, filePath string, p *ProbeResult) (*Conformance
 
 	if audio != nil {
 		t := measure(stamps[audio.Index], modalDelta(stamps[audio.Index]), audio.TimeBaseSeconds())
-		c.AudioStartSeconds = t.Start
+		c.AudioStartSeconds = streamStart(audio, t.Start)
 		c.AudioContentSeconds = t.Content
 		c.AudioGapCount = t.GapCount
 		c.AudioGapSeconds = t.GapSeconds
@@ -166,16 +167,26 @@ func Conform(ctx context.Context, filePath string, p *ProbeResult) (*Conformance
 
 	if c.VideoContentSeconds > 0 && c.AudioContentSeconds > 0 {
 		c.DriftSeconds = c.VideoContentSeconds - c.AudioContentSeconds
+	}
+	if video != nil && audio != nil {
 		c.StartOffsetSeconds = c.VideoStartSeconds - c.AudioStartSeconds
 	}
 
-	c.Issues = p.browserIssues(c)
+	c.Issues, c.Advisories = p.browserVerdict(c)
 	c.BrowserSafe = len(c.Issues) == 0
 	return c, nil
 }
 
-func (p *ProbeResult) browserIssues(c *Conformance) []string {
-	issues := []string{}
+func streamStart(s *StreamInfo, packetStart float64) float64 {
+	if sec, ok := s.StartTimeSeconds(); ok {
+		return sec
+	}
+	return packetStart
+}
+
+func (p *ProbeResult) browserVerdict(c *Conformance) (issues, advisories []string) {
+	issues = []string{}
+	advisories = []string{}
 
 	format := strings.ToLower(p.Format.FormatName)
 	if !strings.Contains(format, "mp4") && !strings.Contains(format, "mov") {
@@ -198,6 +209,9 @@ func (p *ProbeResult) browserIssues(c *Conformance) []string {
 		}
 		if c.VideoGapCount > 0 {
 			issues = append(issues, fmt.Sprintf("video timeline has %d gaps totalling %.3fs, so it is not constant frame rate", c.VideoGapCount, c.VideoGapSeconds))
+		}
+		if codec == "h264" {
+			advisories = append(advisories, "video codec h264 plays everywhere but stores larger than HEVC or AV1 at the same quality")
 		}
 	}
 
@@ -227,13 +241,13 @@ func (p *ProbeResult) browserIssues(c *Conformance) []string {
 		}
 	}
 
-	if drift := c.DriftSeconds; drift > DriftToleranceSeconds || drift < -DriftToleranceSeconds {
-		issues = append(issues, fmt.Sprintf("video and audio content differ by %.3fs", drift))
-	}
-
 	if offset := c.StartOffsetSeconds; offset > DriftToleranceSeconds || offset < -DriftToleranceSeconds {
 		issues = append(issues, fmt.Sprintf("video and audio start %+.3fs apart, so playback is offset from the first frame", offset))
 	}
 
-	return issues
+	if drift := c.DriftSeconds; drift > DriftToleranceSeconds || drift < -DriftToleranceSeconds {
+		advisories = append(advisories, fmt.Sprintf("video and audio content differ by %.3fs, so one stream ends while the other is still playing", drift))
+	}
+
+	return issues, advisories
 }

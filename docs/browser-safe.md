@@ -30,7 +30,7 @@ goff inspect <file> --check --json
 
 Run it on every file. It reads every packet, so budget a few seconds per file on local disk and considerably longer on a network or USB mount. Parallelism follows the disk rather than the CPU: on spinning or USB media, four concurrent jobs typically saturates it, and raising that adds seek contention rather than throughput. Measure utilisation before going higher.
 
-The JSON carries `conformance.browserSafe`, `conformance.issues`, and the per-stream summary. Bucket on the issue list, not on `browserSafe` alone, because the issue names the cheapest fix.
+The JSON carries `conformance.browserSafe`, `conformance.issues`, `conformance.advisories`, and the per-stream summary. Bucket on the issue list, not on `browserSafe` alone, because the issue names the cheapest fix.
 
 ## Step 2: what `browserSafe` requires
 
@@ -48,10 +48,16 @@ Every one of these must hold:
 | audio sample rate | exactly 48000 Hz |
 | audio timeline | zero gaps |
 | audio track order | the first default-flagged track is also first in file order |
-| A/V drift | within 0.1 s |
 | A/V start offset | within 0.1 s |
 
-The last two do not block playback. They are in the verdict because `--check` is a verification gate, not an enforcement gate, and a file failing them is worth a human look.
+`conformance.advisories` carries what is worth knowing and does not block playback, so none of it reaches `browserSafe`:
+
+| advisory | meaning |
+|---|---|
+| A/V content differs by more than 0.1 s | one stream ends while the other is still playing |
+| video codec is H.264 | plays everywhere, stores larger than HEVC or AV1 at the same quality |
+
+Start offset blocks and a content difference does not, because desynchronization is what `--check` predicts. An offset shifts every frame against its audio for the whole file. A content difference leaves the overlap in sync and ends one stream early, and no engine stretches the shorter stream to reach the other.
 
 ## Step 3: decide
 
@@ -76,8 +82,12 @@ issues on the file
     ├─ video bitrate far above what the content needs
     │       └─► compress --crf 24           near-lossless shrink, opt-in
     │
-    └─ drift or start offset only
-            └─► sample and hand to a human. Do not re-encode.
+    ├─ start offset only
+    │       └─► sample and hand to a human. Do not re-encode.
+    │
+    └─ no issues, a content-difference advisory only
+            └─► nothing is required. compress --copy-video --fit-audio or
+                --fit-video removes the odd tail when it is worth the pass.
 ```
 
 Subtitles are independent of all of the above and always run, from the **source** file:
@@ -109,7 +119,8 @@ Run it the other way round only if the remux is the expensive part, which it nev
 
 **Sample and get human confirmation** before acting:
 
-- **drift or start offset outside tolerance.** These are content observations rather than defects. Drift means one stream's timeline is longer than the other's, typically a dub that ends before the video does. Offset means a track starts late. Neither breaks playback. Extract two or three representative files, hand over the exact timestamps to seek to, and let a person watch before anything is re-encoded.
+- **a start offset outside tolerance.** A track starting late is a content observation rather than a defect, and it does not break playback. Extract two or three representative files, hand over the exact timestamps to seek to, and let a person watch before anything is re-encoded.
+- **a content-difference advisory.** One stream's timeline is longer than the other's, typically a dub that ends before the video does. `--fit-audio` and `--fit-video` remove the tail, but which stream should win is a judgment about the content rather than about conformance.
 - **a re-encode purely to save space.** Shrinking is a budget decision, not a conformance one. Report the current bitrate, the estimated output size, and the wall-clock cost, and wait.
 - **anything where the cheap fix has already failed once.** A remux that still fails `--check`, or a `--copy-video` that leaves gaps behind, means the assumption was wrong. Say so rather than escalating straight to a multi-hour re-encode.
 
@@ -154,6 +165,7 @@ goff compress <file> --sub-track none --keep-10bit --keep-hifi-audio   # archive
 - `--keep-10bit` keeps the source bit depth and skips HDR tone-mapping. Pass it whenever the source is 10-bit.
 - `--keep-hifi-audio` keeps the source channel layout instead of downmixing to stereo. Browser-incompatible by definition; archive copies only.
 - `--audio-track` selects which tracks to *keep*, not which becomes default. Leave it at `all`.
+- `--fit-audio` pads or trims the audio to the video length, and `--fit-video` cuts the video back to the audio length. Both end the output at its shortest stream, so both require `--sub-track none`, which the invariants already mandate.
 - `--lossless` and `--size` exist for cases where quality or a byte budget is fixed in advance.
 
 ### Extract subtitles
@@ -186,10 +198,10 @@ Timeline gaps: video 0 (0.000s) | audio 0 (0.000s)
 ```
 
 - **Content** is each timeline's extent. **drift** is video minus audio. Positive means the audio ends first; negative means the audio outlasts the video.
-- **Start** is where each stream's first packet sits. **offset** is video minus audio. Negative means the audio starts later than the video.
+- **Start** is where each stream begins as a decoder presents it, read from the container's per-stream start time so an MP4 edit list is already applied. **offset** is video minus audio. Negative means the audio starts later than the video. A container reporting no start time, such as a raw elementary stream, falls back to the first packet.
 - **Timeline gaps** count intervals between consecutive packets exceeding 1.5x the observed modal period. This is the one that matters: gaps are genuine discontinuities and they do cause progressive desync.
 
-Drift and offset are computed from the container's own timestamps, so they are exact in any container and comparable across a remux.
+All of it is computed from the container's own timestamps, so it is exact in any container and comparable across a remux. Reading the start time rather than the first packet is what keeps AAC encoder delay, a constant 1024 samples, and an edit-list trim out of the offset; both are present in the packets and neither reaches a decoder.
 
 ### What drift and offset mean in practice
 
@@ -227,7 +239,7 @@ Two consequences drive the invariants above. Sidecar VTT is the only subtitle pa
 
 **10-bit is not gated by any engine.** Chromium's `IsDecoderHevcProfileSupported` in `media/base/supported_types.cc` delegates entirely to the platform decoder with no bit-depth branch, and Firefox's `dom/media/platforms/PDMFactory.cpp` hands HEVC to the platform module with no profile restriction. The real limit is whether the viewing device decodes Main 10 in hardware.
 
-**`-tag:v hvc1` under `-c copy` rewrites only the sample-entry fourcc.** Output is byte-identical in size with the same parameter-set NALs. It cannot be applied when a second non-HEVC video stream is present, such as cover art, because ffmpeg then refuses to write the header entirely.
+**`-tag:v hvc1` under `-c copy` rewrites only the sample-entry fourcc.** Output is byte-identical in size with the same parameter-set NALs. `remux`, `subs`, and `mux` name each HEVC stream by its position, so a file carrying cover art as a second video stream is tagged correctly and the cover comes through untouched. `trim`, `normalize`, and `concat` let FFmpeg pick which video stream reaches the output, so they tag only when every video stream in the source is HEVC and leave a cover-art file untagged.
 
 ## Verification gate
 

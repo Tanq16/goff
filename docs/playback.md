@@ -45,6 +45,24 @@ goff compress drifting.mp4 --copy-video
 
 The output is named `<name>.repaired.<ext>`.
 
+## Making the streams end together
+
+A source holding different amounts of video and audio plays in sync for the overlap and then runs on with one stream missing: a silent tail when the audio is shorter, a black or frozen tail when the video is. Neither breaks playback, which is why `inspect --check` reports it as an advisory rather than an issue. Two flags remove the tail when it is worth a pass.
+
+`--fit-audio` keeps the video and makes the audio match it, padding with silence when the audio is short and cutting it when it is long.
+
+```bash
+goff compress silent-tail.mkv --copy-video --fit-audio --sub-track none
+```
+
+`--fit-video` keeps the audio and cuts the video back to it, which is the one for a tail of black frames. It is rejected when the audio is already the longer stream, because cutting the audio there is `--fit-audio` wearing the wrong name.
+
+```bash
+goff compress black-tail.mkv --copy-video --fit-video --sub-track none
+```
+
+Both end the output at its shortest stream, and a kept subtitle track is always that, so both require `--sub-track none`. Both work under `--copy-video`, where they cost seconds instead of hours. `--fit-audio` shapes the audio encode and so cannot be combined with `--copy-audio`.
+
 ## Keeping the source audio
 
 `--copy-audio` passes the audio streams through untouched instead of re-encoding them to AAC. It is the right move when the source audio is worth more than a 128k stereo downmix, such as a 5.1 track or a high-bitrate original.
@@ -94,12 +112,14 @@ Audio is still re-encoded to AAC unless `--copy-audio` is given alongside. It ca
 ```
 $ goff inspect movie.mp4 --check
 → Content: video 6.000s | audio 6.037s | drift -0.037s
-→ Start: video 0.000s | audio -0.021s | offset +0.021s
+→ Start: video 0.000s | audio 0.000s | offset +0.000s
 → Timeline gaps: video 0 (0.000s) | audio 0 (0.000s)
 ✓ Browser-safe
+→ Advisory, does not block playback
+  ! video codec h264 plays everywhere but stores larger than HEVC or AV1 at the same quality
 ```
 
-Content is how much media each stream actually carries, drift is the difference between the two, and offset is how far apart they start. A file is reported browser-safe only when all of the following hold:
+Content is how much media each stream actually carries, drift is the difference between the two, and offset is how far apart they start. Start comes from the container's per-stream start time, so an MP4 edit list is already applied and the offset is the one a decoder presents. A file is reported browser-safe only when all of the following hold:
 
 - The container is MP4 or MOV.
 - The video codec is H.264, H.265, or AV1, and H.265 is tagged `hvc1`.
@@ -107,13 +127,15 @@ Content is how much media each stream actually carries, drift is the difference 
 - The primary audio track is AAC, at most stereo, at 48kHz.
 - The first audio track carrying the default flag is the first audio track.
 - Neither timeline has a gap.
-- Drift and start offset are both within 0.1s.
+- The start offset is within 0.1s.
+
+Drift outside 0.1s and an H.264 video stream are reported as advisories instead, which say the file is worth a look and leave `browserSafe` alone. A stream ending before the other plays in sync for the overlap, and no engine stretches the shorter one to reach the other.
 
 The same reading is available as a data contract under `conformance`:
 
 ```
-$ goff inspect movie.mp4 --json --check | jq -c '.conformance | {driftSeconds, startOffsetSeconds, browserSafe}'
-{"driftSeconds":-0.037333333333332774,"startOffsetSeconds":0.021333333333333333,"browserSafe":true}
+$ goff inspect movie.mp4 --json --check | jq -c '.conformance | {driftSeconds, startOffsetSeconds, browserSafe, advisories}'
+{"driftSeconds":-0.037333333333332774,"startOffsetSeconds":0,"browserSafe":true,"advisories":["video codec h264 plays everywhere but stores larger than HEVC or AV1 at the same quality"]}
 ```
 
 The check costs a fraction of a second on a feature-length file. It is off by default because the plain reading needs only the header.
