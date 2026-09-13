@@ -79,6 +79,8 @@ goff compress master.mov --lossless           # no video quality loss, source re
 goff compress input.mkv --keep-10bit --keep-hifi-audio   # for VLC rather than a browser
 goff compress drifting.mp4 --copy-video       # repair audio sync, video untouched
 goff compress surround.mkv --copy-audio       # 5.1 or hi-fi audio passed through untouched
+goff compress tail.mkv --copy-video --fit-audio --sub-track none   # pad the audio out to the video
+goff compress tail.mkv --copy-video --fit-video --sub-track none   # cut the video back to the audio
 goff compress film.mkv --fps 24               # cap the frame rate, cutting frames and encode time
 goff compress input.mkv --preset slow --audio-bitrate 192k --audio-rate 44100
 ```
@@ -168,6 +170,8 @@ goff inspect movie.mkv --json     # the same reading as a data contract
 goff inspect movie.mp4 --check    # timeline gaps, A/V drift, browser playability
 ```
 
+`--check` splits its verdict: `issues` are what stops a browser playing the file and decide `browserSafe`, while `advisories` name what is worth a look and change nothing. A stream ending before the other and an H.264 video track are advisories.
+
 [docs/browser-safe.md](docs/browser-safe.md) is the runbook for taking an arbitrary set of files to a browser-safe state, covering what `--check` reports and the cheapest fix for each issue it names.
 
 ### Scripting and agents
@@ -178,6 +182,7 @@ Styled output is a property of the destination rather than a flag: piping any co
 goff compress video.mp4 --debug
 goff inspect video.mp4 --json | jq '.streams[] | select(.type == "audio")'
 goff inspect video.mp4 --json --check | jq '.conformance.browserSafe'
+goff inspect video.mp4 --json --check | jq '.conformance.advisories'
 ```
 
 Under `--debug`, an encode reports progress once a second carrying `current`, `total`, `unit`, `percent`, `rate`, and `eta`, with `message` naming the file and `percent` absent when the source duration is unknown. The destination picks the format, so those arrive as JSON objects down a pipe and as console lines at a terminal. A run given several inputs interleaves those per file and drops the summary table, which the normal tier keeps even when piped. A parent process reads those objects rather than scraping the bar, and a tool wanting goff's encode contract runs the binary rather than reproducing its FFmpeg arguments.
@@ -189,6 +194,7 @@ Under `--debug`, an encode reports progress once a second carrying `current`, `t
 - **Audio modes**: `mux --audio-mode` decides what happens to the audio a video already has. `mix` layers it with the new tracks into one, `replace` drops it, and `separate` keeps every track selectable, which leaves nothing for `at=` or `vol=` to apply to and so rejects them.
 - **HLS layout**: each packaged video gets its own directory holding `index.m3u8` and the segments, so two packaged videos never share a segment name. fMP4 packaging adds an `init.mp4` next to them.
 - **Timestamp shifting**: `remux --fix-timestamps` moves a negative start time to zero, which matters for captures whose audio and video begin at different points.
+- **Stream lengths**: `compress --fit-audio` pads or trims the audio to the video length, and `--fit-video` cuts the video back to the audio length. Both end the output at its shortest stream, so both need `--sub-track none`, and `--fit-video` is rejected when the audio is already the longer stream.
 - **Out-of-range numbers**: a numeric flag given a value past its range is rejected before any work starts, and `--help` prints the accepted range as the flag's type, such as `--crf 1..63`. H.265 and H.264 both cap at 51, so a `--crf` above that lands at 51 for either codec, while AV1 uses the full range.
 - **Thumbnails**: `thumbnail` seeks before decoding and writes one JPEG at quality 2, defaulting to the midpoint of the file and 640px wide with the height following the aspect ratio. An `--at` at or past the last frame is rejected before FFmpeg runs.
 - **Container bitrate**: `inspect` prints the container bitrate on its summary line, deriving it from size over duration when FFprobe reports none. A derived figure can differ slightly from a reported one, and a file FFprobe gives no duration for shows `-`.
