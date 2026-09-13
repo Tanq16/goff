@@ -106,7 +106,7 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 		return nil, fmt.Errorf("fitting stream lengths ends the output at the shortest stream, and a kept subtitle track is always that; pass --sub-track none")
 	}
 	if opts.FitVideo {
-		if err := checkFitVideo(video, p.PrimaryAudioStream()); err != nil {
+		if err := checkFitVideo(video, plan.Audio); err != nil {
 			return nil, err
 		}
 	}
@@ -210,7 +210,7 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 	}
 
 	if outputIsHEVC {
-		args = tagHEVC(args, 0, targetExt)
+		args = tagHEVC(args, targetExt)
 	}
 
 	audio := probe.DefaultFirst(plan.Audio)
@@ -269,13 +269,22 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 	}, nil
 }
 
-func checkFitVideo(video, audio *probe.StreamInfo) error {
-	if audio == nil {
+func checkFitVideo(video *probe.StreamInfo, audio []probe.StreamInfo) error {
+	if len(audio) == 0 {
 		return nil
 	}
-	videoSeconds, audioSeconds := video.DurationSeconds(), audio.DurationSeconds()
-	if videoSeconds <= 0 || audioSeconds <= videoSeconds {
-		return nil
+
+	var audioSeconds float64
+	for _, a := range audio {
+		audioSeconds = max(audioSeconds, a.DurationSeconds())
 	}
-	return fmt.Errorf("the audio runs %.3fs past the video, so --fit-video would cut the audio instead; use --fit-audio", audioSeconds-videoSeconds)
+	videoSeconds := video.DurationSeconds()
+	if videoSeconds <= 0 || audioSeconds <= 0 {
+		return fmt.Errorf("the source reports no stream durations, so --fit-video cannot tell which stream is longer; use --fit-audio, or remux the source to give it durations")
+	}
+
+	if audioSeconds-videoSeconds > probe.DriftToleranceSeconds {
+		return fmt.Errorf("the audio runs %.3fs past the video, so --fit-video would cut the audio instead; use --fit-audio", audioSeconds-videoSeconds)
+	}
+	return nil
 }

@@ -54,7 +54,9 @@ func BuildAudioLoudnorm(inputPath string, p *probe.ProbeResult, opts AudioLoudno
 
 	if p != nil && p.IsVideo() && !isAudioExt {
 		args = append(args, "-c:v", "copy", "-c:a", "aac", "-b:a", "192k")
-		args = tagHEVC(args, hevcTagPosition(p), ext)
+		if allCopiedVideoIsHEVC(p) {
+			args = tagHEVC(args, ext)
+		}
 		if containerUsesMOVMuxer(ext) {
 			args = append(args, "-movflags", "+faststart")
 		}

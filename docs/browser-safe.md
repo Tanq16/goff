@@ -239,7 +239,7 @@ Two consequences drive the invariants above. Sidecar VTT is the only subtitle pa
 
 **10-bit is not gated by any engine.** Chromium's `IsDecoderHevcProfileSupported` in `media/base/supported_types.cc` delegates entirely to the platform decoder with no bit-depth branch, and Firefox's `dom/media/platforms/PDMFactory.cpp` hands HEVC to the platform module with no profile restriction. The real limit is whether the viewing device decodes Main 10 in hardware.
 
-**`-tag:v hvc1` under `-c copy` rewrites only the sample-entry fourcc.** Output is byte-identical in size with the same parameter-set NALs. goff tags the HEVC stream by its position in the output, so a file carrying cover art as a second video stream is tagged correctly and the cover comes through untouched.
+**`-tag:v hvc1` under `-c copy` rewrites only the sample-entry fourcc.** Output is byte-identical in size with the same parameter-set NALs. `remux`, `subs`, and `mux` name each HEVC stream by its position, so a file carrying cover art as a second video stream is tagged correctly and the cover comes through untouched. `trim`, `normalize`, and `concat` let FFmpeg pick which video stream reaches the output, so they tag only when every video stream in the source is HEVC and leave a cover-art file untagged.
 
 ## Verification gate
 

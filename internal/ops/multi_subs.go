@@ -21,15 +21,18 @@ func BuildMultiMuxSubs(p *probe.ProbeResult, opts MultiMuxSubsOpts) (*OpResult, 
 		return nil, err
 	}
 
-	args := []string{"-i", opts.VideoInput, "-i", opts.SubsInput}
+	var videos []probe.StreamInfo
 	if p != nil {
-		args = mapStreams(args, p.VideoStreams())
+		videos = p.VideoStreams()
 	}
+
+	args := []string{"-i", opts.VideoInput, "-i", opts.SubsInput}
+	args = mapStreams(args, videos)
 	args = mapStreams(args, plan.Audio)
 	args = mapStreams(args, plan.Subtitles)
 	args = mapStreams(args, plan.Attachments)
 	args = append(args, "-map", "1:0", "-c", "copy")
-	args = tagHEVC(args, hevcTagPosition(p), targetExt)
+	args = tagHEVCTracks(args, videos, targetExt)
 
 	added := len(plan.Subtitles)
 	if !containerHoldsEverything(targetExt) {

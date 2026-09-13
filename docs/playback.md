@@ -115,6 +115,8 @@ $ goff inspect movie.mp4 --check
 → Start: video 0.000s | audio 0.000s | offset +0.000s
 → Timeline gaps: video 0 (0.000s) | audio 0 (0.000s)
 ✓ Browser-safe
+→ Advisory, does not block playback
+  ! video codec h264 plays everywhere but stores larger than HEVC or AV1 at the same quality
 ```
 
 Content is how much media each stream actually carries, drift is the difference between the two, and offset is how far apart they start. Start comes from the container's per-stream start time, so an MP4 edit list is already applied and the offset is the one a decoder presents. A file is reported browser-safe only when all of the following hold:
@@ -133,7 +135,7 @@ The same reading is available as a data contract under `conformance`:
 
 ```
 $ goff inspect movie.mp4 --json --check | jq -c '.conformance | {driftSeconds, startOffsetSeconds, browserSafe, advisories}'
-{"driftSeconds":-0.037333333333332774,"startOffsetSeconds":0,"browserSafe":true,"advisories":[]}
+{"driftSeconds":-0.037333333333332774,"startOffsetSeconds":0,"browserSafe":true,"advisories":["video codec h264 plays everywhere but stores larger than HEVC or AV1 at the same quality"]}
 ```
 
 The check costs a fraction of a second on a feature-length file. It is off by default because the plain reading needs only the header.
