@@ -197,7 +197,9 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 		}
 	}
 
-	args = tagHEVC(args, outputIsHEVC, targetExt)
+	if outputIsHEVC {
+		args = tagHEVC(args, 0, targetExt)
+	}
 
 	audio := probe.DefaultFirst(plan.Audio)
 	if len(audio) == 0 {

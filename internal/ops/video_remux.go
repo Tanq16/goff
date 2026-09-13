@@ -40,7 +40,7 @@ func BuildVideoRemux(inputPath string, p *probe.ProbeResult, opts VideoRemuxOpts
 	if promoted {
 		args = audioDispositions(args, len(plan.Audio))
 	}
-	args = tagHEVC(args, copiedVideoIsHEVC(p), targetExt)
+	args = tagHEVC(args, hevcTagPosition(p), targetExt)
 	if len(plan.Subtitles) > 0 && plan.SubEncoder != "copy" {
 		args = append(args, "-c:s", plan.SubEncoder)
 	}

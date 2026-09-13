@@ -84,7 +84,9 @@ func BuildMultiMuxAudio(p *probe.ProbeResult, opts MultiMuxAudioOpts) (*OpResult
 	}
 
 	targetExt := videoContainerFor(opts.VideoInput)
-	args = tagHEVC(args, copiedVideoIsHEVC(p), targetExt)
+	if hevcTagPosition(p) == 0 {
+		args = tagHEVC(args, 0, targetExt)
+	}
 	if containerUsesMOVMuxer(targetExt) {
 		args = append(args, "-movflags", "+faststart")
 	}

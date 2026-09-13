@@ -20,25 +20,21 @@ func containerHoldsEverything(targetExt string) bool {
 	return strings.EqualFold(strings.TrimPrefix(targetExt, "."), "mkv")
 }
 
-func copiedVideoIsHEVC(probes ...*probe.ProbeResult) bool {
-	if len(probes) == 0 {
-		return false
-	}
+func hevcTagPosition(probes ...*probe.ProbeResult) int {
+	position := -1
 	for _, p := range probes {
 		if p == nil {
-			return false
+			return -1
 		}
-		videos := p.VideoStreams()
-		if len(videos) == 0 {
-			return false
+		at := slices.IndexFunc(p.VideoStreams(), func(v probe.StreamInfo) bool {
+			return strings.EqualFold(v.CodecName, "hevc")
+		})
+		if at < 0 || (position >= 0 && at != position) {
+			return -1
 		}
-		for _, v := range videos {
-			if !strings.EqualFold(v.CodecName, "hevc") {
-				return false
-			}
-		}
+		position = at
 	}
-	return true
+	return position
 }
 
 func containerUsesMOVMuxer(targetExt string) bool {
@@ -46,11 +42,11 @@ func containerUsesMOVMuxer(targetExt string) bool {
 	return ext == "mp4" || ext == "mov"
 }
 
-func tagHEVC(args []string, outputIsHEVC bool, targetExt string) []string {
-	if !outputIsHEVC || !containerUsesMOVMuxer(targetExt) {
+func tagHEVC(args []string, position int, targetExt string) []string {
+	if position < 0 || !containerUsesMOVMuxer(targetExt) {
 		return args
 	}
-	return append(args, "-tag:v", "hvc1")
+	return append(args, fmt.Sprintf("-tag:v:%d", position), "hvc1")
 }
 
 func planTracks(p *probe.ProbeResult, audioSel, subSel probe.TrackSelector, targetExt string) (trackPlan, error) {
