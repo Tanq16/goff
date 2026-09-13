@@ -80,6 +80,8 @@ type VideoOptimizeOpts struct {
 	KeepHiFiAudio bool
 	CopyVideo     bool
 	CopyAudio     bool
+	FitAudio      bool
+	FitVideo      bool
 	AudioTracks   probe.TrackSelector
 	SubTracks     probe.TrackSelector
 }
@@ -97,6 +99,16 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 	video := p.PrimaryVideoStream()
 	if video == nil {
 		return nil, fmt.Errorf("no video stream to compress")
+	}
+
+	fitLength := opts.FitAudio || opts.FitVideo
+	if fitLength && len(plan.Subtitles) > 0 {
+		return nil, fmt.Errorf("fitting stream lengths ends the output at the shortest stream, and a kept subtitle track is always that; pass --sub-track none")
+	}
+	if opts.FitVideo {
+		if err := checkFitVideo(video, p.PrimaryAudioStream()); err != nil {
+			return nil, err
+		}
 	}
 
 	args := []string{"-i", inputPath, "-map", fmt.Sprintf("0:%d", video.Index)}
@@ -205,6 +217,11 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 	if len(audio) == 0 {
 		args = append(args, "-an")
 	} else {
+		audioFilter := AudioSyncFilter
+		if opts.FitAudio {
+			audioFilter += ",apad"
+		}
+
 		args = mapStreams(args, audio)
 		if opts.CopyAudio {
 			args = append(args, "-c:a", "copy")
@@ -213,7 +230,7 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 				"-c:a", "aac",
 				"-b:a", cmp.Or(opts.AudioBitrate, "128k"),
 				"-ar", strconv.Itoa(cmp.Or(opts.AudioRate, 48000)),
-				"-af", AudioSyncFilter,
+				"-af", audioFilter,
 			)
 			if !keepChannels {
 				args = append(args, "-ac", "2")
@@ -225,6 +242,10 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 	if len(plan.Subtitles) > 0 {
 		args = mapStreams(args, plan.Subtitles)
 		args = append(args, "-c:s", plan.SubEncoder)
+	}
+
+	if fitLength {
+		args = append(args, "-shortest")
 	}
 
 	args = append(args, "-movflags", "+faststart")
@@ -246,4 +267,15 @@ func BuildVideoOptimize(inputPath string, p *probe.ProbeResult, opts VideoOptimi
 		TargetExt: targetExt,
 		Notes:     notes,
 	}, nil
+}
+
+func checkFitVideo(video, audio *probe.StreamInfo) error {
+	if audio == nil {
+		return nil
+	}
+	videoSeconds, audioSeconds := video.DurationSeconds(), audio.DurationSeconds()
+	if videoSeconds <= 0 || audioSeconds <= videoSeconds {
+		return nil
+	}
+	return fmt.Errorf("the audio runs %.3fs past the video, so --fit-video would cut the audio instead; use --fit-audio", audioSeconds-videoSeconds)
 }

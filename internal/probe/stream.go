@@ -2,6 +2,7 @@ package probe
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -94,12 +95,19 @@ func (p *ProbeResult) TotalDuration() float64 {
 }
 
 func (s *StreamInfo) DurationSeconds() float64 {
-	if s.Duration == "" {
+	if sec, err := strconv.ParseFloat(s.Duration, 64); err == nil && sec > 0 {
+		return sec
+	}
+	return parseClockDuration(tagValue(s.Tags, "duration"))
+}
+
+func parseClockDuration(v string) float64 {
+	var hours, minutes int
+	var seconds float64
+	if _, err := fmt.Sscanf(v, "%d:%d:%f", &hours, &minutes, &seconds); err != nil {
 		return 0
 	}
-	var sec float64
-	fmt.Sscanf(s.Duration, "%f", &sec)
-	return sec
+	return float64(hours)*3600 + float64(minutes)*60 + seconds
 }
 
 func (p *ProbeResult) HumanSize() string {
