@@ -101,6 +101,14 @@ func (s *StreamInfo) DurationSeconds() float64 {
 	return parseClockDuration(tagValue(s.Tags, "duration"))
 }
 
+func (s *StreamInfo) StartTimeSeconds() (float64, bool) {
+	sec, err := strconv.ParseFloat(s.StartTime, 64)
+	if err != nil {
+		return 0, false
+	}
+	return sec, true
+}
+
 func parseClockDuration(v string) float64 {
 	var hours, minutes int
 	var seconds float64
