@@ -33,10 +33,7 @@ type fileResult struct {
 	Err      error
 }
 
-const (
-	mediaUnit       = utils.Unit("s")
-	perFileMeterMax = 15
-)
+const perFileMeterMax = 15
 
 func printNotes(notes []string) {
 	for _, note := range notes {
@@ -172,12 +169,17 @@ func prepare(ctx context.Context, input string, build buildFunc) (*ops.OpResult,
 
 func encode(ctx context.Context, m *utils.Meter, args []string, totalSec float64) error {
 	return engine.RunFFmpeg(ctx, args, totalSec, func(prog engine.ProgressUpdate) {
-		m.Set(int64(prog.CurrentSeconds))
+		m.Set(prog.CurrentMicros)
+		m.Rate(prog.Speed * 1_000_000)
 	})
 }
 
+func mediaTicks(seconds float64) int64 {
+	return int64(seconds * 1_000_000)
+}
+
 func encodeRate(mediaSec float64, elapsed time.Duration) string {
-	return utils.FormatRate(mediaSec/max(elapsed.Seconds(), 0.001), mediaUnit)
+	return utils.FormatRate(mediaSec/max(elapsed.Seconds(), 0.001), utils.UnitSeconds)
 }
 
 func outputName(label string, outputs []string, base bool) string {
@@ -232,7 +234,7 @@ func runSingle(verb string, input string, build buildFunc) {
 	printNotes(res.Notes)
 
 	mediaSec := p.TotalDuration()
-	m := utils.NewMeter(verb, label, int64(mediaSec), mediaUnit)
+	m := utils.NewMeter(verb, label, mediaTicks(mediaSec), utils.UnitMicros)
 	err = encode(ctx, m, encodeArgs(res, outPaths), mediaSec)
 	elapsed := m.Close()
 	if err == nil {
@@ -270,7 +272,7 @@ func runComposed(verb string, namingInput string, res *ops.OpResult, totalSec fl
 	defer stop()
 
 	label := filepath.Base(namingInput)
-	m := utils.NewMeter(verb, label, int64(totalSec), mediaUnit)
+	m := utils.NewMeter(verb, label, mediaTicks(totalSec), utils.UnitMicros)
 	err = encode(ctx, m, append(res.Args, outPath), totalSec)
 	elapsed := m.Close()
 	if res.Cleanup != nil {
@@ -361,7 +363,7 @@ dispatch:
 			mediaSec := p.TotalDuration()
 			args := encodeArgs(res, outPaths)
 			if perFile {
-				m := g.Meter(verb, label, int64(mediaSec), mediaUnit)
+				m := g.Meter(verb, label, mediaTicks(mediaSec), utils.UnitMicros)
 				err = encode(ctx, m, args, mediaSec)
 				m.Close()
 			} else {
