@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"os"
+	"sync/atomic"
 
 	"charm.land/lipgloss/v2"
 	"github.com/rs/zerolog/log"
@@ -57,8 +58,21 @@ func PrintError(msg string, err error) {
 
 func PrintFatal(msg string, err error) {
 	PrintError(msg, err)
+	Exit(1)
+}
+
+var interrupted atomic.Bool
+
+func Interrupt() {
+	interrupted.Store(true)
+}
+
+func Exit(code int) {
 	ShowCursor()
-	os.Exit(1)
+	if interrupted.Load() {
+		code = 130
+	}
+	os.Exit(code)
 }
 
 func PrintWarn(msg string, err error) {

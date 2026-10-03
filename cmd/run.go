@@ -65,6 +65,13 @@ func failure(verb, label string, err error) (string, error) {
 	return fmt.Sprintf("%s %s for %s", verb, outcome(err), label), err
 }
 
+func abort(verb, label string, err error) {
+	if errors.Is(err, context.Canceled) {
+		utils.Interrupt()
+	}
+	utils.PrintFatal(failure(verb, label, err))
+}
+
 func discard(res *ops.OpResult, outputs []string) {
 	if res != nil && res.Cleanup != nil {
 		res.Cleanup()
@@ -228,7 +235,7 @@ func runSingle(verb string, input string, build buildFunc) {
 	label := filepath.Base(input)
 	res, p, outPaths, err := prepare(ctx, input, build)
 	if err != nil {
-		utils.PrintFatal(failure(verb, label, err))
+		abort(verb, label, err)
 	}
 
 	printNotes(res.Notes)
@@ -242,7 +249,7 @@ func runSingle(verb string, input string, build buildFunc) {
 	}
 	if err != nil {
 		discard(res, outPaths)
-		utils.PrintFatal(failure(verb, label, err))
+		abort(verb, label, err)
 	}
 
 	utils.PrintSuccess(utils.SettledLine(
@@ -283,7 +290,7 @@ func runComposed(verb string, namingInput string, res *ops.OpResult, totalSec fl
 	}
 	if err != nil {
 		os.Remove(outPath)
-		utils.PrintFatal(failure(verb, label, err))
+		abort(verb, label, err)
 	}
 
 	utils.PrintSuccess(utils.SettledLine(
@@ -405,7 +412,11 @@ dispatch:
 	}
 	g.Done(written)
 
-	if ctx.Err() != nil && len(results) < len(files) {
+	cancelled := ctx.Err() != nil
+	if cancelled {
+		utils.Interrupt()
+	}
+	if cancelled && len(results) < len(files) {
 		utils.PrintWarn(fmt.Sprintf("%s cancelled: %d of %d files were never started", verb, len(files)-len(results), len(files)), nil)
 	}
 
@@ -419,8 +430,8 @@ dispatch:
 		printSummary(results)
 	}
 
-	if failed > 0 {
-		os.Exit(1)
+	if failed > 0 || cancelled {
+		utils.Exit(1)
 	}
 }
 
