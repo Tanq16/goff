@@ -8,13 +8,13 @@ import (
 )
 
 type ProgressUpdate struct {
-	Percent        int
-	CurrentSeconds float64
-	TotalSeconds   float64
-	Speed          string
-	FPS            float64
-	OutBytes       int64
-	Done           bool
+	Percent       int
+	CurrentMicros int64
+	TotalSeconds  float64
+	Speed         float64
+	FPS           float64
+	OutBytes      int64
+	Done          bool
 }
 
 type ProgressCallback func(p ProgressUpdate)
@@ -39,16 +39,11 @@ func ScanProgress(r io.Reader, totalDurationSec float64, onProgress ProgressCall
 
 		switch key {
 		case "out_time_us":
-			if us, err := strconv.ParseFloat(val, 64); err == nil {
-				current.CurrentSeconds = us / 1_000_000.0
+			if us, err := strconv.ParseInt(val, 10, 64); err == nil {
+				current.CurrentMicros = us
 				if totalDurationSec > 0 {
-					pct := int((current.CurrentSeconds / totalDurationSec) * 100)
-					if pct > 100 {
-						pct = 100
-					} else if pct < 0 {
-						pct = 0
-					}
-					current.Percent = pct
+					pct := int(float64(us) / (totalDurationSec * 1_000_000.0) * 100)
+					current.Percent = min(max(pct, 0), 100)
 				}
 			}
 		case "total_size":
@@ -56,7 +51,9 @@ func ScanProgress(r io.Reader, totalDurationSec float64, onProgress ProgressCall
 				current.OutBytes = sz
 			}
 		case "speed":
-			current.Speed = val
+			if s, err := strconv.ParseFloat(strings.TrimSuffix(val, "x"), 64); err == nil {
+				current.Speed = s
+			}
 		case "fps":
 			if f, err := strconv.ParseFloat(val, 64); err == nil {
 				current.FPS = f

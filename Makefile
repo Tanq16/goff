@@ -1,4 +1,4 @@
-.PHONY: help clean build build-for build-all test version
+.PHONY: help clean build build-for build-all version
 
 # =============================================================================
 # Variables
@@ -28,9 +28,6 @@ help: ## Show this help
 clean: ## Remove built binaries
 	@rm -f $(APP_NAME) $(APP_NAME)-*
 	@echo "$(GREEN)Cleaned$(NC)"
-
-test: ## Run unit tests
-	@go test -v ./...
 
 # =============================================================================
 # Build

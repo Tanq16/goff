@@ -15,9 +15,29 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type Unit string
+type unitKind int
 
-const UnitBytes Unit = ""
+const (
+	kindBytes unitKind = iota
+	kindCount
+	kindDuration
+)
+
+type Unit struct {
+	kind  unitKind
+	noun  string
+	ticks int64
+}
+
+var (
+	UnitBytes   = Unit{kind: kindBytes}
+	UnitSeconds = Unit{kind: kindDuration, ticks: 1}
+	UnitMicros  = Unit{kind: kindDuration, ticks: 1_000_000}
+)
+
+func CountUnit(noun string) Unit {
+	return Unit{kind: kindCount, noun: noun}
+}
 
 const (
 	minWidth      = 24
@@ -29,11 +49,13 @@ const (
 )
 
 const (
-	percentField     = 4
-	transferredField = 14
-	rateField        = 11
-	etaField         = 11
-	averageField     = 15
+	percentField   = 4
+	etaField       = 11
+	bytePairWidth  = 14
+	spanPairWidth  = 13
+	quantityRate   = 11
+	multiplierRate = 5
+	averageExtra   = 4
 )
 
 var (
@@ -153,6 +175,8 @@ type Meter struct {
 	current int64
 	start   time.Time
 	window  rateWindow
+	placed  float64
+	hasRate bool
 	frames  int
 	drawn   int
 	elapsed time.Duration
@@ -203,6 +227,20 @@ func (m *Meter) Add(delta int64) {
 	m.current += delta
 }
 
+func (m *Meter) Rate(perSecond float64) {
+	render.Lock()
+	defer render.Unlock()
+	m.placed = perSecond
+	m.hasRate = true
+}
+
+func (m *Meter) rateLocked() float64 {
+	if m.hasRate {
+		return m.placed
+	}
+	return m.window.current()
+}
+
 func (m *Meter) Write(p []byte) (int, error) {
 	m.Add(int64(len(p)))
 	return len(p), nil
@@ -245,7 +283,7 @@ func (m *Meter) report() {
 		label += " " + m.context
 	}
 	stats := strings.Join(m.statsLocked(true, true, true), "  ")
-	current, total, rate := m.current, m.total, m.window.current()
+	current, total, rate := m.current, m.total, m.rateLocked()
 	eta := m.etaLocked()
 	render.Unlock()
 
@@ -254,7 +292,7 @@ func (m *Meter) report() {
 			Int64("current", current).
 			Int64("total", total).
 			Float64("rate", rate).
-			Str("unit", string(m.unit)).
+			Str("unit", m.unit.String()).
 			Str("eta", eta)
 		if hasPercent {
 			entry = entry.Int("percent", percent)
@@ -291,15 +329,15 @@ func (m *Meter) etaLocked() string {
 	if m.total <= 0 {
 		return "eta unknown"
 	}
-	rate := m.window.current()
-	if rate <= 0 {
+	average := m.averageLocked()
+	if average <= 0 {
 		return "eta unknown"
 	}
 	remaining := float64(m.total - m.current)
 	if remaining <= 0 {
 		return "eta 0s"
 	}
-	seconds := remaining / rate
+	seconds := remaining / average
 	if seconds > 100*3600 {
 		return "eta unknown"
 	}
@@ -307,14 +345,8 @@ func (m *Meter) etaLocked() string {
 }
 
 func (m *Meter) transferredLocked() string {
-	if m.unit == UnitBytes {
-		if m.total > 0 {
-			return bytePair(m.current, m.total)
-		}
-		return FormatAmount(m.current, UnitBytes)
-	}
 	if m.total > 0 {
-		return fmt.Sprintf("%d / %d %s", m.current, m.total, m.unit)
+		return FormatPair(m.current, m.total, m.unit)
 	}
 	return FormatAmount(m.current, m.unit)
 }
@@ -326,7 +358,7 @@ func (m *Meter) statsLocked(rate, eta, average bool) []string {
 	}
 	stats = append(stats, m.transferredLocked())
 	if rate {
-		stats = append(stats, FormatRate(m.window.current(), m.unit))
+		stats = append(stats, FormatRate(m.rateLocked(), m.unit))
 	}
 	if eta {
 		stats = append(stats, m.etaLocked())
@@ -359,18 +391,18 @@ func (m *Meter) barLocked(width int) string {
 }
 
 func (m *Meter) reservedLocked(rate, eta, average bool) int {
-	width := transferredField
+	width := m.unit.pairWidth(m.total)
 	if _, ok := m.percentLocked(); ok {
 		width += percentField + 2
 	}
 	if rate {
-		width += rateField + 2
+		width += m.unit.rateWidth() + 2
 	}
 	if eta {
 		width += etaField + 2
 	}
 	if average {
-		width += averageField + 2
+		width += m.unit.rateWidth() + averageExtra + 2
 	}
 	return width
 }
@@ -533,7 +565,7 @@ func (g *Group) Meter(verb, name string, total int64, unit Unit) *Meter {
 }
 
 func (g *Group) Count(verb string, total int64) *Meter {
-	m := NewMeter(verb, fmt.Sprintf("%d %s", total, g.noun), total, Unit(g.noun))
+	m := NewMeter(verb, fmt.Sprintf("%d %s", total, g.noun), total, CountUnit(g.noun))
 	g.mu.Lock()
 	g.counter = m
 	g.mu.Unlock()
@@ -586,7 +618,7 @@ func (g *Group) Done(moved string) {
 	}
 
 	elapsed := time.Since(g.start)
-	average := FormatRate(float64(ok+failed)/max(elapsed.Seconds(), 0.001), Unit(g.noun))
+	average := FormatRate(float64(ok+failed)/max(elapsed.Seconds(), 0.001), CountUnit(g.noun))
 	count := fmt.Sprintf("%d %s", ok, g.noun)
 	if failed > 0 {
 		count = fmt.Sprintf("%d ok, %d failed", ok, failed)
@@ -620,22 +652,65 @@ func formatNumber(value float64) string {
 	return strconv.FormatFloat(value, 'f', 0, 64)
 }
 
-func bytePair(current, total int64) string {
-	divisor, suffix := byteScale(total)
-	return fmt.Sprintf("%s / %s %s", formatNumber(float64(current)/divisor), formatNumber(float64(total)/divisor), suffix)
+func (u Unit) String() string {
+	switch u.kind {
+	case kindCount:
+		return u.noun
+	case kindDuration:
+		return "s"
+	}
+	return "B"
+}
+
+func (u Unit) span(value int64) time.Duration {
+	return time.Duration(float64(value) / float64(u.ticks) * float64(time.Second))
+}
+
+func (u Unit) pairWidth(total int64) int {
+	switch u.kind {
+	case kindCount:
+		return lipgloss.Width(FormatPair(total, total, u))
+	case kindDuration:
+		return spanPairWidth
+	}
+	return bytePairWidth
+}
+
+func (u Unit) rateWidth() int {
+	if u.kind == kindDuration {
+		return multiplierRate
+	}
+	return quantityRate
 }
 
 func FormatAmount(value int64, unit Unit) string {
-	if unit != UnitBytes {
-		return fmt.Sprintf("%d %s", value, unit)
+	switch unit.kind {
+	case kindCount:
+		return fmt.Sprintf("%d %s", value, unit.noun)
+	case kindDuration:
+		return FormatEstimate(unit.span(value))
 	}
 	divisor, suffix := byteScale(value)
 	return formatNumber(float64(value)/divisor) + " " + suffix
 }
 
+func FormatPair(current, total int64, unit Unit) string {
+	switch unit.kind {
+	case kindCount:
+		return fmt.Sprintf("%d / %d %s", current, total, unit.noun)
+	case kindDuration:
+		return FormatEstimate(unit.span(current)) + " / " + FormatEstimate(unit.span(total))
+	}
+	divisor, suffix := byteScale(total)
+	return fmt.Sprintf("%s / %s %s", formatNumber(float64(current)/divisor), formatNumber(float64(total)/divisor), suffix)
+}
+
 func FormatRate(value float64, unit Unit) string {
-	if unit != UnitBytes {
-		return formatNumber(value) + " " + string(unit) + "/s"
+	switch unit.kind {
+	case kindCount:
+		return formatNumber(value) + " " + unit.noun + "/s"
+	case kindDuration:
+		return formatNumber(value/float64(unit.ticks)) + "x"
 	}
 	divisor, suffix := byteScale(int64(value))
 	return formatNumber(value/divisor) + " " + suffix + "/s"

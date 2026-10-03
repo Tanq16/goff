@@ -33,10 +33,7 @@ type fileResult struct {
 	Err      error
 }
 
-const (
-	mediaUnit       = utils.Unit("s")
-	perFileMeterMax = 15
-)
+const perFileMeterMax = 15
 
 func printNotes(notes []string) {
 	for _, note := range notes {
@@ -66,6 +63,13 @@ func failure(verb, label string, err error) (string, error) {
 		return fmt.Sprintf("cannot %s %s: %v", verb, label, invalid.error), err
 	}
 	return fmt.Sprintf("%s %s for %s", verb, outcome(err), label), err
+}
+
+func abort(verb, label string, err error) {
+	if errors.Is(err, context.Canceled) {
+		utils.Interrupt()
+	}
+	utils.PrintFatal(failure(verb, label, err))
 }
 
 func discard(res *ops.OpResult, outputs []string) {
@@ -172,12 +176,17 @@ func prepare(ctx context.Context, input string, build buildFunc) (*ops.OpResult,
 
 func encode(ctx context.Context, m *utils.Meter, args []string, totalSec float64) error {
 	return engine.RunFFmpeg(ctx, args, totalSec, func(prog engine.ProgressUpdate) {
-		m.Set(int64(prog.CurrentSeconds))
+		m.Set(prog.CurrentMicros)
+		m.Rate(prog.Speed * 1_000_000)
 	})
 }
 
+func mediaTicks(seconds float64) int64 {
+	return int64(seconds * 1_000_000)
+}
+
 func encodeRate(mediaSec float64, elapsed time.Duration) string {
-	return utils.FormatRate(mediaSec/max(elapsed.Seconds(), 0.001), mediaUnit)
+	return utils.FormatRate(mediaSec/max(elapsed.Seconds(), 0.001), utils.UnitSeconds)
 }
 
 func outputName(label string, outputs []string, base bool) string {
@@ -226,13 +235,13 @@ func runSingle(verb string, input string, build buildFunc) {
 	label := filepath.Base(input)
 	res, p, outPaths, err := prepare(ctx, input, build)
 	if err != nil {
-		utils.PrintFatal(failure(verb, label, err))
+		abort(verb, label, err)
 	}
 
 	printNotes(res.Notes)
 
 	mediaSec := p.TotalDuration()
-	m := utils.NewMeter(verb, label, int64(mediaSec), mediaUnit)
+	m := utils.NewMeter(verb, label, mediaTicks(mediaSec), utils.UnitMicros)
 	err = encode(ctx, m, encodeArgs(res, outPaths), mediaSec)
 	elapsed := m.Close()
 	if err == nil {
@@ -240,7 +249,7 @@ func runSingle(verb string, input string, build buildFunc) {
 	}
 	if err != nil {
 		discard(res, outPaths)
-		utils.PrintFatal(failure(verb, label, err))
+		abort(verb, label, err)
 	}
 
 	utils.PrintSuccess(utils.SettledLine(
@@ -270,7 +279,7 @@ func runComposed(verb string, namingInput string, res *ops.OpResult, totalSec fl
 	defer stop()
 
 	label := filepath.Base(namingInput)
-	m := utils.NewMeter(verb, label, int64(totalSec), mediaUnit)
+	m := utils.NewMeter(verb, label, mediaTicks(totalSec), utils.UnitMicros)
 	err = encode(ctx, m, append(res.Args, outPath), totalSec)
 	elapsed := m.Close()
 	if res.Cleanup != nil {
@@ -281,7 +290,7 @@ func runComposed(verb string, namingInput string, res *ops.OpResult, totalSec fl
 	}
 	if err != nil {
 		os.Remove(outPath)
-		utils.PrintFatal(failure(verb, label, err))
+		abort(verb, label, err)
 	}
 
 	utils.PrintSuccess(utils.SettledLine(
@@ -361,7 +370,7 @@ dispatch:
 			mediaSec := p.TotalDuration()
 			args := encodeArgs(res, outPaths)
 			if perFile {
-				m := g.Meter(verb, label, int64(mediaSec), mediaUnit)
+				m := g.Meter(verb, label, mediaTicks(mediaSec), utils.UnitMicros)
 				err = encode(ctx, m, args, mediaSec)
 				m.Close()
 			} else {
@@ -403,7 +412,11 @@ dispatch:
 	}
 	g.Done(written)
 
-	if ctx.Err() != nil && len(results) < len(files) {
+	cancelled := ctx.Err() != nil
+	if cancelled {
+		utils.Interrupt()
+	}
+	if cancelled && len(results) < len(files) {
 		utils.PrintWarn(fmt.Sprintf("%s cancelled: %d of %d files were never started", verb, len(files)-len(results), len(files)), nil)
 	}
 
@@ -417,8 +430,8 @@ dispatch:
 		printSummary(results)
 	}
 
-	if failed > 0 {
-		os.Exit(1)
+	if failed > 0 || cancelled {
+		utils.Exit(1)
 	}
 }
 
